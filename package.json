@@ -1,0 +1,27 @@
+{
+  "name": "pintxo-node-api",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20.11.19",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@feathersjs/feathers": "^5.0.22",
+    "@feathersjs/koa": "^5.0.22",
+    "@feathersjs/socketio": "^5.0.22",
+    "@syndicateio/syndicate-node": "^0.0.449",
+    "cohere-ai": "^7.7.5",
+    "dotenv": "^16.4.4",
+    "ethers": "^6.11.1",
+    "qs": "^6.11.2"
+  }
+}
