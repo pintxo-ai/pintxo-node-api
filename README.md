@@ -2,7 +2,7 @@
 
 ## setup
 
-`npm i`
+`pnpm install`
 
 `npx ts-node src/app.ts`
 
