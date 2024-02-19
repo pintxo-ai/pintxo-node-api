@@ -1,0 +1,3 @@
+enum PROMPT_TYPES {
+    
+}

@@ -4,12 +4,11 @@ import axios from 'axios';
 import qs from 'qs';
 import { ethers } from "ethers";
 import { SyndicateClient } from "@syndicateio/syndicate-node";
-const syndicate = new SyndicateClient({ token: process.env.SYNDICATE_API_KEY || "invalid"})
 
-
+const syndicate = new SyndicateClient({ token: process.env.SYNDICATE_API_KEY || "invalid, set syndicate key in .env"})
 
 // Facade pattern
-class TransactionHelper {
+class TransactionHandler {
     actions: { [key: string]: () => void } = {
         'swap': this.swap,
         'aave_deposit': this.aave_deposit,
@@ -141,4 +140,4 @@ class TransactionHelper {
     }
 }
 
-export default TransactionHelper
+export default TransactionHandler

@@ -1,54 +1,31 @@
 import { feathers } from '@feathersjs/feathers'
 import { koa, rest, bodyParser, errorHandler, serveStatic } from '@feathersjs/koa'
-import TransactionHelper from './transactions'
 
-let th = new TransactionHelper();
+import TransactionHandler from './transactions'
+import VespaHandler from './vespa'
+import LMHandler from './lm';
 
-// This is the interface for the message data
-interface Message {
-  id?: number
-  text: string
-}
+let th = new TransactionHandler();
+let vh = new VespaHandler();
+let lm = new LMHandler();
 
-// A messages service that allows us to create new
-// and return all existing messages
-class MessageService {
-  messages: Message[] = []
-
-  async find() {
-    // Just return all our messages
-    return this.messages
-  }
-
-  async create(data: Pick<Message, 'text'>) {
-    // The new message is the data text with a unique identifier added
-    // using the messages length since it changes whenever we add one
-    const message: Message = {
-      id: this.messages.length,
-      text: data.text
-    }
-
-    // Add new message to the list
-    this.messages.push(message)
-
-    return message
-  }
+interface Query {
+  type? : string
+  text: string,
 }
 
 class QueryService {
-    async get(data: string) {
-      let result = await th.call(data)
+    async get(query: string) {
+      // let result = await th.call(data.text)
+      let top_3_functions = await vh.query(query);
+      let result = await lm.extract_function_parameters(query, top_3_functions);
+
       return result
     }
 }
 
-// class VespaService {
-//     async get()
-// }
-
 // This tells TypeScript what services we are registering
 type ServiceTypes = {
-  messages: MessageService
   query: QueryService
 }
 
@@ -70,9 +47,3 @@ app.use('query', new QueryService())
 app
   .listen(3030)
   .then(() => console.log('Feathers server listening on localhost:3030'))
-
-// For good measure let's create a message
-// So our API doesn't look so empty
-// app.service('messages').create({
-//   text: 'Hello world from the server'
-// })
