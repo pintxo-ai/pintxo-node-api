@@ -16,6 +16,14 @@ class TransactionHandler {
         'approve': this.approve,
     };
 
+    // todo: make this a type.
+    async execute_function(data: any){
+        // swap is special since we use the 0x api for call data and need to do decoding.
+        if (data.name == 'swap') {
+            // get_transformation_data_for_swap(data.)
+        }
+    }
+
     async call (fun: string) {
         const func = this.actions[fun];
         if (func) {
@@ -138,6 +146,36 @@ class TransactionHandler {
               console.log(error.response);
             });
     }
+}
+
+async function get_transformation_data_for_swap(buyToken: string, sellToken: string, sellAmount: string, sellTokenDecimals: number) {
+    let abi = [
+        "function transformERC20(address inputToken, address outputToken, uint256 inputTokenAmount, uint256 minOutputTokenAmount, (uint32 deploymentNonce, bytes data)[] transformations)",
+    ];
+
+    const iface  = new ethers.Interface(abi);
+        
+    const params = {
+        sellToken: sellToken, //WETH
+        buyToken: buyToken, //USDC
+        sellAmount: ethers.parseUnits(sellAmount, sellTokenDecimals).toString(), // Note that the ETH token uses 6 decimal places, so `sellAmount` is `0.001 * 10^18`.
+    };
+    
+    const headers = {'0x-api-key': process.env.ZEROEX_API_KEY || "invalid"}; 
+    const response = await fetch(
+        `https://base.api.0x.org/swap/v1/quote?${qs.stringify(params)}`, { headers }
+    ); 
+    // The example is for Ethereum mainnet https://api.0x.org. Refer to the 0x Cheat Sheet for all supported endpoints: https://0x.org/docs/introduction/0x-cheat-sheet
+    let respo = await response.json();
+    let decoded_calldata = iface.decodeFunctionData("transformERC20", respo.data);
+    // the last element of the decoded calldata is the transformations[] field.
+    // we need to parse through this
+    let transformations = []    
+    for (const index in decoded_calldata[4]) {
+        transformations.push({"deploymentNonce" : ethers.getNumber(decoded_calldata[4][index][0]), "data": decoded_calldata[4][index][1].toString()})
+    }
+
+    return transformations
 }
 
 export default TransactionHandler
