@@ -7,6 +7,11 @@ import { SyndicateClient } from "@syndicateio/syndicate-node";
 
 const syndicate = new SyndicateClient({ token: process.env.SYNDICATE_API_KEY || "invalid, set syndicate key in .env"})
 
+function sleep(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+const CHAIN_ID=ethers.getNumber(process.env.BASE_CHAIN_ID || 0)
 // Facade pattern
 class TransactionHandler {
     actions: { [key: string]: () => void } = {
@@ -17,11 +22,47 @@ class TransactionHandler {
     };
 
     // todo: make this a type.
-    async execute_function(data: any){
+    async execute_function(signature: string, contract_address: string, params: any){
+        console.log(signature)
+        console.log(contract_address)
+        console.log(params)
         // swap is special since we use the 0x api for call data and need to do decoding.
-        if (data.name == 'swap') {
-            // get_transformation_data_for_swap(data.)
+        if (signature == 'transformERC20(address inputToken, address outputToken, uint256 inputTokenAmount, uint256 minOutputTokenAmount, (uint32 deploymentNonce, bytes data)[] transformations)') {
+            // approval 
+            await syndicate.transact.sendTransaction({
+                projectId: process.env.SYNDICATE_PROJECT_ID || "missing project id",
+                contractAddress: params.inputToken.value,
+                chainId: CHAIN_ID,
+                functionSignature: "approve(address guy, uint256 wad)",
+                args: {
+                    guy: contract_address,
+                    wad: ethers.getNumber(params.inputTokenAmount.value),
+                },
+            })
+
+            // wait for the approval to get approved by a block.
+            // this is temporary, and needs to get fixed.
+            await sleep(3000)
+            console.log(params)
+            let zeroex_data = await get_transformation_data_for_swap(params.inputToken.value, params.outputToken.value, params.inputTokenAmount.value);
+            let tx = await syndicate.transact.sendTransaction({
+                projectId: process.env.SYNDICATE_PROJECT_ID || "missing project id",
+                contractAddress: contract_address,
+                chainId: CHAIN_ID,
+                functionSignature: "transformERC20(address inputToken, address outputToken, uint256 inputTokenAmount, uint256 minOutputTokenAmount, (uint32 deploymentNonce, bytes data)[] transformations)",
+                args: {
+                    inputToken: params.inputToken.value,
+                    outputToken: params.outputToken.value,
+                    inputTokenAmount: ethers.getNumber(params.inputTokenAmount.value),
+                    minOutputTokenAmount: ethers.getNumber(zeroex_data.minOutputTokenAmount),
+                    transformations: zeroex_data.transformations
+                },
+            })
+    
+            return tx 
         }
+
+        return "error?"
     }
 
     async call (fun: string) {
@@ -148,7 +189,7 @@ class TransactionHandler {
     }
 }
 
-async function get_transformation_data_for_swap(buyToken: string, sellToken: string, sellAmount: string, sellTokenDecimals: number) {
+async function get_transformation_data_for_swap(sellToken: string, buyToken: string, sellAmount: string) {
     let abi = [
         "function transformERC20(address inputToken, address outputToken, uint256 inputTokenAmount, uint256 minOutputTokenAmount, (uint32 deploymentNonce, bytes data)[] transformations)",
     ];
@@ -158,9 +199,8 @@ async function get_transformation_data_for_swap(buyToken: string, sellToken: str
     const params = {
         sellToken: sellToken, //WETH
         buyToken: buyToken, //USDC
-        sellAmount: ethers.parseUnits(sellAmount, sellTokenDecimals).toString(), // Note that the ETH token uses 6 decimal places, so `sellAmount` is `0.001 * 10^18`.
-    };
-    
+        sellAmount: sellAmount, // Note that the ETH token uses 6 decimal places, so `sellAmount` is `0.001 * 10^18`.
+    };    
     const headers = {'0x-api-key': process.env.ZEROEX_API_KEY || "invalid"}; 
     const response = await fetch(
         `https://base.api.0x.org/swap/v1/quote?${qs.stringify(params)}`, { headers }
@@ -175,7 +215,7 @@ async function get_transformation_data_for_swap(buyToken: string, sellToken: str
         transformations.push({"deploymentNonce" : ethers.getNumber(decoded_calldata[4][index][0]), "data": decoded_calldata[4][index][1].toString()})
     }
 
-    return transformations
+    return {"minOutputTokenAmount": decoded_calldata[3], "transformations":transformations}
 }
 
 export default TransactionHandler
