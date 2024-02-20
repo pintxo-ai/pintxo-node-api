@@ -1,54 +1,54 @@
 import { feathers } from '@feathersjs/feathers'
 import { koa, rest, bodyParser, errorHandler, serveStatic } from '@feathersjs/koa'
-import TransactionHelper from './transactions'
 
-let th = new TransactionHelper();
+import TransactionHandler from './transactions'
+import VespaHandler from './vespa'
+import LMHandler from './lm';
+import { string } from 'cohere-ai/core/schemas';
 
-// This is the interface for the message data
-interface Message {
-  id?: number
-  text: string
+let th = new TransactionHandler();
+let vh = new VespaHandler();
+let lm = new LMHandler();
+
+interface Query {
+  type? : string
+  text: string,
 }
 
-// A messages service that allows us to create new
-// and return all existing messages
-class MessageService {
-  messages: Message[] = []
-
-  async find() {
-    // Just return all our messages
-    return this.messages
-  }
-
-  async create(data: Pick<Message, 'text'>) {
-    // The new message is the data text with a unique identifier added
-    // using the messages length since it changes whenever we add one
-    const message: Message = {
-      id: this.messages.length,
-      text: data.text
-    }
-
-    // Add new message to the list
-    this.messages.push(message)
-
-    return message
+interface Function {
+  fields: {
+    documentid: string,
+    name: string,
+    description: string,
+    signature: string,
+    functional_signature: string,
+    contract_address: string,
+    inputValues: [],
+    prerequisites: []
   }
 }
 
 class QueryService {
-    async get(data: string) {
-      let result = await th.call(data)
+    async get(query: string) {
+      // let result = await th.call(data.text)
+      let top_3_function_signatures: Function[] = await vh.query(query);
+      let formatted_function_signatures = top_3_function_signatures.map(entry => `input signature:"${entry.fields.functional_signature}"\ndescription:"${entry.fields.description}"`).join('\n\n'); 
+      // todo: return type 
+      let result = await lm.extract_function_parameters(query, formatted_function_signatures);
+      for (const [key, value] of Object.entries(result)) {
+        // this conditional does not scale.
+        // need to downstream type 'address' from function signature/lm output.
+        if (key == 'inputToken' || key == 'outputToken') {
+          let new_value = await vh.fast_contract_address_retrieval(result[key])
+          result[key] = new_value;
+        }
+      }
       return result
     }
 }
 
-// class VespaService {
-//     async get()
-// }
-
 // This tells TypeScript what services we are registering
 type ServiceTypes = {
-  messages: MessageService
   query: QueryService
 }
 
@@ -70,9 +70,3 @@ app.use('query', new QueryService())
 app
   .listen(3030)
   .then(() => console.log('Feathers server listening on localhost:3030'))
-
-// For good measure let's create a message
-// So our API doesn't look so empty
-// app.service('messages').create({
-//   text: 'Hello world from the server'
-// })
