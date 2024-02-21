@@ -16,12 +16,15 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
+    "@feathersjs/errors": "^5.0.22",
     "@feathersjs/feathers": "^5.0.22",
     "@feathersjs/koa": "^5.0.22",
     "@feathersjs/socketio": "^5.0.22",
     "@syndicateio/syndicate-node": "^0.0.449",
+    "@types/qs": "^6.9.11",
+    "axios": "^1.6.7",
     "cohere-ai": "^7.7.5",
-    "dotenv": "^16.4.4",
+    "dotenv": "^16.4.5",
     "ethers": "^6.11.1",
     "qs": "^6.11.2"
   }

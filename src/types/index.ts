@@ -1,3 +1,0 @@
-enum PROMPT_TYPES {
-    
-}
