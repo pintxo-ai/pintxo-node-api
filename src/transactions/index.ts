@@ -5,7 +5,7 @@ import qs from 'qs';
 import { ethers } from "ethers";
 import { SyndicateClient } from "@syndicateio/syndicate-node";
 import VespaHandler from '../vespa'; 
-import { VESPA_SCHEMA } from '../vespa/types';
+import { VESPA_SCHEMA, FunctionSchema } from '../vespa/types';
 import { InputValue } from '../lm/types';
 import LMHandler from '../lm';
 import { GeneralError } from '@feathersjs/errors';
@@ -15,7 +15,7 @@ const syndicate = new SyndicateClient({ token: process.env.SYNDICATE_API_KEY || 
 let vh = new VespaHandler();
 let lm = new LMHandler();
 
-const CHAIN_ID=ethers.getNumber(process.env.BASE_CHAIN_ID || 0);
+const CHAIN_ID=ethers.getNumber(process.env.BASE_CHAIN_ID || 8453);
 
 /// TransactionHandler class for executing transactions.
 class TransactionHandler {
@@ -23,18 +23,56 @@ class TransactionHandler {
         let top_3_function_signatures = await vh.query(query, VESPA_SCHEMA.FUNCTION);
         let formatted_function_signatures = top_3_function_signatures.map(entry => `signature:"${entry.fields.functional_signature}"\ndescription:"${entry.fields.description}"`).join('\n\n'); 
         
-        let result = await lm.extract_function_parameters(query, formatted_function_signatures);
-        let new_result = await parse_for_contract_address_and_scale_by_decimals(result);
-        let chosen_function = await vh.get_function_by_id(new_result.function.value);
-        let tx = await this.execute_function(chosen_function.fields.signature, chosen_function.fields.address, new_result);
+        let parameters = await lm.extract_function_parameters(query, formatted_function_signatures);
+        let modified_parameters = await parse_for_contract_address_and_scale_by_decimals(parameters);
+        let chosen_function = await vh.get_function_by_id(modified_parameters.function.value);
+        let tx = await this.execute(chosen_function, modified_parameters);
 
-        return chosen_function
+        return tx
     }
 
-    async execute_function(signature: string, contract_address: string, params: any){
+    // todo: add some type checking for params? Definitely needs some proper validation.
+    async execute(func: FunctionSchema, params: any) {
+        // call any prerequisite functions
+        for (const [key, {id, contract_to_call, function_signature, inputs}] of Object.entries(func.fields.prerequisites)) {
+            let args: Record<string, string> = {}
+            for (const [key, {corresponds_to, name, value_type}] of Object.entries(inputs)) {
+                // special case when the main contract address being called is a param. ie, approvals
+                if (corresponds_to == 'contract_address') {
+                    args[name] = func.fields.contract_address
+                }
+                else {
+                    args[name] = params[corresponds_to].value
+                }
+            }
+            let tx = await this.__execute_function(function_signature, params[contract_to_call].value, args);
+            return tx
+        }
+    }
+
+    /// this function actually handles execution, all scaling/retrival should be done before inputting into this.
+    async __execute_function(function_signature: string, contract_to_call: string, args: Record<string, string>){
+        let result;
+        try {
+            result = await syndicate.transact.sendTransaction({
+                projectId: process.env.SYNDICATE_PROJECT_ID || "missing project id",
+                contractAddress: contract_to_call,
+                chainId: CHAIN_ID,
+                functionSignature: function_signature,
+                args: args,
+            })
+        } catch (error) {
+            throw new GeneralError("tx errored", error);
+        }
+        return result
+    }
+
+
+    /// private method for executing a transaction via execute()
+    async a__execute_function(func: FunctionSchema, params: any){
         // TODO: make all of this programmatic, not hard coded.
         // swap is special since we use the 0x api for call data and need to do decoding.
-        if (signature == 'transformERC20(address inputToken, address outputToken, uint256 inputTokenAmount, uint256 minOutputTokenAmount, (uint32 deploymentNonce, bytes data)[] transformations)') {
+        if (func.fields.signature == 'transformERC20(address inputToken, address outputToken, uint256 inputTokenAmount, uint256 minOutputTokenAmount, (uint32 deploymentNonce, bytes data)[] transformations)') {
             // approval 
             try {
                 await syndicate.transact.sendTransaction({
@@ -43,7 +81,7 @@ class TransactionHandler {
                     chainId: CHAIN_ID,
                     functionSignature: "approve(address guy, uint256 wad)",
                     args: {
-                        guy: contract_address,
+                        guy: func.fields.contract_address,
                         wad: ethers.getNumber(params.inputTokenAmount.value),
                     },
                 })
@@ -113,7 +151,7 @@ async function parse_for_contract_address_and_scale_by_decimals(result: Record<s
     for (const [key, {value, value_type}] of Object.entries(result)) {
         if (value_type == 'address') {
             let new_value = await vh.fast_contract_address_retrieval(value)
-            result[key].value = new_value.address;
+            result[key].value = new_value.contract_address;
 
             // add some sort of relationship between these two in the document?
             // some sort of graph parse to validate all relationships or something.
