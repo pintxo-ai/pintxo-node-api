@@ -2,9 +2,11 @@ import { text } from "stream/consumers";
 import { CLASSIFIER_LEVELS } from "../lm/types";
 import LMHandler from '../lm';
 import TransactionHandler from "../transactions";
+import DataHandler from "../data";
 
 let lm = new LMHandler();
 let th = new TransactionHandler();
+let dh = new DataHandler();
 
 /// The entrypoint for all queries into the Pintxo API.
 /// Responsible for handling malicious queries gracefully,
@@ -18,8 +20,10 @@ class QueryHandler {
             return th.process(decodeURIComponent(query))
         }
         else if (decision == 'query') {
-            // alex this is where you can jump in with perplexity/other decision tree stuff
-            return "Todo!"
+            return dh.process(decodeURIComponent(query))
+        }
+        else if (decision == 'combo') {
+            return "TODO"
         }
     }
 }

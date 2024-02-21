@@ -1,6 +1,7 @@
 export enum CLASSIFIER_LEVELS {
     LEVEL_ONE, // transaction, query, combo
-    LEVEL_TWO
+    LEVEL_TWO,
+    DATA_LEVEL_ONE  // extracting document labels
 }
 
 export interface InputValue {

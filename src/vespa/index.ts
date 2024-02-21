@@ -22,10 +22,16 @@ class VespaHandler {
         } else if (schema == VESPA_SCHEMA.CONTRACT) {
             body = 'should not get here'
         }
+        // else if (schema == VESPA_SCHEMA.PROTOCOL) { // TODO: IMPLEMENT ALONG WITH VESPA LABEL FINE TUNE MODEL
+        //     body = create_protocol_query(text);
+        // }
+        // else if (schema == VESPA_SCHEMA.METRIC) {
+        //     body = create_metric_query(text);
+        // }
 
         try {
             const requestURL = `${process.env.VESPA_SEARCH_ENDPOINT}/?${qs.stringify(body)}`;
-            const result: VespaFunctionResponse = await axios.get(requestURL);
+            const result: VespaFunctionResponse = await axios.get(requestURL); // TODO: CREATE PARENT ABSTRACTION FOR VESPA RESPONSE -need to support other schema response or handle this logic differently with respective functions
             return result.data.root.children
         } catch (error) {
             throw new GeneralError('Something went wrong when searching vespa.', error)
@@ -84,5 +90,23 @@ function create_contract_query(text: string, limit: number = 3) {
         "yql" : `select * from contract where userQuery() or ({targetHits: 100}nearestNeighbor(symbol_embedding, q)) or ({targetHits: 100}nearestNeighbor(name_embedding, q)) limit ${limit}`
     }
 }
+
+// function create_protocol_query(text: string, limit: number = 3) {
+//     return {
+//         "query": text,
+//         "input.query(q)": `embed(e5, @query)`,
+//         "timeout" : "10s",
+//         "yql" : `select * from protocol where userQuery() or ({targetHits: 100}nearestNeighbor(symbol_embedding, q)) or ({targetHits: 100}nearestNeighbor(name_embedding, q)) limit ${limit}`
+//     }
+// }
+
+// function create_metric_query(text: string, limit: number = 3) {
+//     return {
+//         "query": text,
+//         "input.query(q)": `embed(e5, @query)`,
+//         "timeout" : "10s",
+//         "yql" : `select * from metric where userQuery() or ({targetHits: 100}nearestNeighbor(symbol_embedding, q)) or ({targetHits: 100}nearestNeighbor(name_embedding, q)) limit ${limit}`
+//     }
+// }
 
 export default VespaHandler

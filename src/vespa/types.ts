@@ -80,7 +80,9 @@ interface FunctionSchema {
 
 enum VESPA_SCHEMA {
     FUNCTION,
-    CONTRACT
+    CONTRACT,
+    PROTOCOL,
+    METRIC
 }
 
 export {VespaContractResponse, VESPA_SCHEMA, FunctionSchema, FunctionInputValues, VespaFunctionResponse, VespaDocumentResponse}
