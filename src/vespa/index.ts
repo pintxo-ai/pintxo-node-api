@@ -2,98 +2,9 @@ import axios from 'axios';
 import qs from 'qs';
 
 import { GeneralError } from '@feathersjs/errors'
+import {VESPA_SCHEMA, VespaContractResponse, VespaFunctionResponse, VespaDocumentResponse, FunctionSchema} from './types'
 
-interface VespaQueryInput {
-
-}
-
-enum VALUE_TYPES {
-    CONTRACT_ADDRESS,
-    uint256
-}
-
-interface FunctionInputValues {
-    name: string,
-    schema: string,
-    value_type: VALUE_TYPES,
-}
-
-interface VespaContractResponse {
-    status: number,
-    statusText: string,
-    url: string,
-    data: {
-        root: VespaContractResponseData
-    },
-}
-
-interface VespaDocumentResponse {
-    data: {
-        fields: FunctionSchema
-    }
-}
-
-interface VespaContractResponseData {
-    id: string,
-    relevance: number,
-    fields: any,
-    coverage: any,
-    children: ContractSchema[]
-}
-
-interface ContractSchema {
-    id: string,
-    relevance: string,
-    fields: {
-        documentid: string,
-        decimals: string,
-        name: string,
-        description: string,
-        signature: string,
-        functional_signature: string,
-        contract_address: string,
-        prerequisites: string[],
-        input_values: FunctionInputValues[]
-    }
-}
-
-interface VespaFunctionResponse {
-    status: number,
-    statusText: string,
-    url: string,
-    data: {
-        root: VespaFunctionResponseData
-    },
-}
-
-interface VespaFunctionResponseData {
-    id: string,
-    relevance: number,
-    fields: any,
-    coverage: any,
-    children: FunctionSchema[]
-}
-
-interface FunctionSchema {
-    id: string,
-    relevance?: string,
-    fields: {
-        documentid: string,
-        name: string,
-        description: string,
-        signature: string,
-        functional_signature: string,
-        contract_address: string,
-        prerequisites: string[],
-        input_values: FunctionInputValues[]
-    }
-}
-
-enum VESPA_SCHEMA {
-    FUNCTION,
-    CONTRACT
-}
-
+/// VespaHandler responsible for handling all vespa calls.
 class VespaHandler {
     
     /// Entrypoint for any vespa query.
@@ -140,11 +51,11 @@ class VespaHandler {
     ///     id: string - the id you are searching for
     /// Returns:
     ///     VespaResponse
-    async get_function_by_id(id: string) {
+    async get_function_by_id(id: string): Promise<FunctionSchema> {
         const requestURL = `${process.env.VESPA_BASE_ENDPOINT}document/v1/pintxo/function/docid/${id}`;
         try {
             const result: VespaDocumentResponse = await axios.get(requestURL);
-            return result.data.fields
+            return result.data
         } catch(error) {
             throw new GeneralError("get_function_by_id errored.", error)
         }

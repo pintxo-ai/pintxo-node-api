@@ -1,22 +1,30 @@
 import { CohereClient } from "cohere-ai";
-
+import { InputValue, CLASSIFIER_LEVELS } from "./types";
 
 const cohere = new CohereClient({
     token: process.env.COHERE_API_KEY || "invalid, set COHERE_API_KEY in .env",
 });
 
+/// Handles all logic associated with calling a LM api. 
 class LMHandler {
     async extract_function_parameters(user_input: string, relevant_functions: any) {
-        // console.log(relevant_functions)
         let cohere_response = await cohere.generate({
             prompt: get_formatted_prompt(user_input, relevant_functions),
             temperature: 0,
         });
-        
-        //
-        
-        // let function_parameters = decompose_string(cohere_response.generations[0].text);
         return decompose_string(cohere_response.generations[0].text);
+    }
+    async classify(user_input: string, level: CLASSIFIER_LEVELS){
+        if (level == CLASSIFIER_LEVELS.LEVEL_ONE) {
+            return (await cohere.classify({
+                model: process.env.LEVEL_ONE_CLASSIFIER, // classifier v0.1
+                inputs: [user_input],
+                examples: []
+            })).classifications[0].prediction
+        }
+        if (level == CLASSIFIER_LEVELS.LEVEL_TWO) {
+            // coming soon?
+        }
     }
 }
 
@@ -58,14 +66,8 @@ function get_formatted_prompt(text: string, signature: string) {
     Remember, your response should be strictly the output with no justification. 
     Output:
     `
-    console.log(prompt)
     return prompt
 } 
-
-interface InputValue {
-    value: string,
-    value_type: string
-}
 
 function decompose_string(input: string): Record<string, InputValue> {
     const pairs = input.split('##'); 
