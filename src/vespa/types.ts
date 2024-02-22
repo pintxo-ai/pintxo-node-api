@@ -1,3 +1,5 @@
+import { string } from "cohere-ai/core/schemas"
+
 enum VALUE_TYPES {
     CONTRACT_ADDRESS,
     uint256
@@ -6,6 +8,12 @@ enum VALUE_TYPES {
 interface FunctionInputValues {
     name: string,
     schema: string,
+    value_type: VALUE_TYPES,
+}
+
+interface PrerequisiteInputValues {
+    corresponds_to: string,
+    name: string,
     value_type: VALUE_TYPES,
 }
 
@@ -30,6 +38,13 @@ interface VespaContractResponseData {
     children: ContractSchema[]
 }
 
+interface Prerequisite {
+    id: string,
+    contract_to_call: string,
+    function_signature: string,
+    inputs: PrerequisiteInputValues[]
+}
+
 interface ContractSchema {
     id: string,
     relevance: string,
@@ -40,8 +55,8 @@ interface ContractSchema {
         description: string,
         signature: string,
         functional_signature: string,
-        address: string,
-        prerequisites: string[],
+        contract_address: string,
+        prerequisites: Prerequisite[],
         input_values: FunctionInputValues[]
     }
 }
@@ -72,8 +87,8 @@ interface FunctionSchema {
         description: string,
         signature: string,
         functional_signature: string,
-        address: string,
-        prerequisites: string[],
+        contract_address: string,
+        prerequisites: Prerequisite[],
         input_values: FunctionInputValues[]
     }
 }

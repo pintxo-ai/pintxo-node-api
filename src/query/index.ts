@@ -13,7 +13,7 @@ class QueryHandler {
     async process(query: string) {
         // classify as 'transaction', 'query', or 'combo'
         let decision = await lm.classify(decodeURIComponent(query), CLASSIFIER_LEVELS.LEVEL_ONE)
-        
+
         if (decision == 'transaction') {
             return th.process(decodeURIComponent(query))
         }
