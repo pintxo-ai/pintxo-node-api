@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { CohereClient } from "cohere-ai";
 import { InputValue, CLASSIFIER_LEVELS } from "./types";
 
@@ -14,6 +15,7 @@ class LMHandler {
         });
         return decompose_string(cohere_response.generations[0].text);
     }
+
     async classify(user_input: string, level: CLASSIFIER_LEVELS){
         if (level == CLASSIFIER_LEVELS.LEVEL_ONE) {
             return (await cohere.classify({
@@ -24,6 +26,67 @@ class LMHandler {
         }
         if (level == CLASSIFIER_LEVELS.LEVEL_TWO) {
             // coming soon?
+        }
+        if (level == CLASSIFIER_LEVELS.DATA_LEVEL_ONE) {
+            // return (await cohere.classify({
+            //     model: process.env.DATA_LEVEL_ONE_CLASSIFIER, // query_level_one_classifier_v0.1
+            //     inputs: [user_input],
+            //     examples: []
+            // })).classifications[0].prediction
+            // TO FINISH, WILL FINISH TRAINING SCRIPT & TUNE MODEL TMR
+            return ""
+        }
+    }
+
+    async perplexity(query: string) {
+        const data = {
+            model: 'mistral-7b-instruct',
+            messages: [
+                { 
+                    content: "You are Pintxo On-Chain Chad, a specialized artificial intelligence assistant with " +
+                        "a focus on blockchain technology, cryptocurrencies, and the broader " +
+                        "ecosystem around it. Your role is to engage in helpful, detailed, " +
+                        "and polite conversations with users, providing them with accurate, " +
+                        "up-to-date information on blockchain and crypto-related queries. " +
+                        "You should be capable of performing searches to gather the latest " +
+                        "information, explaining complex concepts in an accessible manner, " +
+                        "and assisting users with inquiries related to blockchain technology, " +
+                        "crypto markets, smart contracts, NFTs, and other related topics. " +
+                        "Your responses should reflect a deep understanding of the subject matter, " +
+                        "tailored to the user's level of expertise. If you cannot find an answer, inform the user and do not lie.", 
+                    role: 'system' 
+                },
+                { 
+                    content: query, 
+                    role: 'user' 
+                },
+            ],
+            max_tokens: 512,
+            temperature: 1,
+            top_p: 1,
+            top_k: 0,
+            stream: false,
+            presence_penalty: 0,
+            frequency_penalty: 1
+        };
+        
+    
+        const config = {
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${process.env.PERPLEXITY_API_KEY}` // ADD TO ENV
+                
+            }
+        };
+    
+        try {
+            const response = await axios.post('https://api.perplexity.ai/chat/completions', data, config); // TODO: MAKE API URL ENV VAR - ${process.env.PERPLEXITY_API_URL}
+            console.log(response.data);
+            return response.data;
+        } catch (error) {
+            console.log(axios.isAxiosError(error) ? error.response : error);
+            return { 'RESPONSE': 'NOT FOUND' };
         }
     }
 }
