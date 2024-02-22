@@ -50,7 +50,7 @@ function get_formatted_prompt(text: string, signature: string) {
     description:"Approval function for erc20 or erc721 contracts."
 
     your output should be:
-    function:deposit:none##asset:ETH:address##amount:ALL:uint256
+    function:aave_deposit:none##asset:ETH:address##amount:ALL:uint256
     </example>
     
     Now you give it a go:
