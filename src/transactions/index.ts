@@ -93,44 +93,6 @@ class TransactionHandler {
     }
 }
 
-function parse_and_validate_params(
-    func: NewFunctionSchema,
-    functionParams: Record<string, FunctionParameter>,
-  ): Record<string, string> { 
-
-    const iface = new Interface(["function "+func.fields.signature]);
-    
-    let expectedParams = JSON.parse(iface.formatJson())
-    
-    const parsedObject: Record<string, string> = {
-      ...expectedParams[0].inputs.reduce((acc: any, input: any) => ({ ...acc, [input.name]:  '' }), {})
-    };
-          
-    for (const key in functionParams) {
-      if (parsedObject.hasOwnProperty(key)) { 
-        const param = functionParams[key];
-        let value = param.value;
-        
-        // tiny bit of validation
-        if (param.type === 'address') {
-          if (!ethers.isAddress(value)) throw new GeneralError("not valid address"); 
-        }
-        parsedObject[key] = value; 
-      }
-    }
-
-    for (const [k, {name, type, denominated_by}] of Object.entries(func.fields.inputs)) {
-        if (parsedObject.hasOwnProperty(name)) { 
-            if (type == 'caller_address') {
-                // once we know how syndicate account abstraction works, we would fire in this.
-                parsedObject[name] = "0x7bb037dad988406e1e399780e508518599cd4370"
-            }
-        }
-    }
-  
-    return parsedObject; 
-  }
-
 async function get_args_for_swap(sellToken: string, buyToken: string, sellAmount: string) {
     let abi = [
         "function transformERC20(address inputToken, address outputToken, uint256 inputTokenAmount, uint256 minOutputTokenAmount, (uint32 deploymentNonce, bytes data)[] transformations)",
@@ -203,6 +165,45 @@ async function parse_user_inputted_parameters(func: NewFunctionSchema, result: R
 }
 
 export default TransactionHandler
+
+
+// function parse_and_validate_params(
+//     func: NewFunctionSchema,
+//     functionParams: Record<string, FunctionParameter>,
+//   ): Record<string, string> { 
+
+//     const iface = new Interface(["function "+func.fields.signature]);
+    
+//     let expectedParams = JSON.parse(iface.formatJson())
+    
+//     const parsedObject: Record<string, string> = {
+//       ...expectedParams[0].inputs.reduce((acc: any, input: any) => ({ ...acc, [input.name]:  '' }), {})
+//     };
+          
+//     for (const key in functionParams) {
+//       if (parsedObject.hasOwnProperty(key)) { 
+//         const param = functionParams[key];
+//         let value = param.value;
+        
+//         // tiny bit of validation
+//         if (param.type === 'address') {
+//           if (!ethers.isAddress(value)) throw new GeneralError("not valid address"); 
+//         }
+//         parsedObject[key] = value; 
+//       }
+//     }
+
+//     for (const [k, {name, type, denominated_by}] of Object.entries(func.fields.inputs)) {
+//         if (parsedObject.hasOwnProperty(name)) { 
+//             if (type == 'caller_address') {
+//                 // once we know how syndicate account abstraction works, we would fire in this.
+//                 parsedObject[name] = "0x7bb037dad988406e1e399780e508518599cd4370"
+//             }
+//         }
+//     }
+  
+//     return parsedObject; 
+//   }
 
 // keep this comment because it's the only reference for using syndicate's sendTransactionWithValue endpoint.
 // async wrapEth() {
