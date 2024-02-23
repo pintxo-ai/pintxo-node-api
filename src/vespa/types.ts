@@ -1,20 +1,43 @@
-import { string } from "cohere-ai/core/schemas"
 
+// Input types to function signatures
 enum VALUE_TYPES {
-    CONTRACT_ADDRESS,
-    uint256
+    caller_address,
+    address,
+    uint256,
 }
 
+interface NewFunctionSchema {
+    pathId: string,
+    id: string,
+    fields: {
+        description: string,
+        functional_signature: string,
+        contract_address: string,
+        signature: string,
+        name: string,
+        inputs: Record<string, InputInfo>
+        prerequisites?: Prerequisite[]
+    }
+}
+
+interface InputInfo {
+    name: string
+    type: string
+    denominated_by?: string
+}
+
+
+// unify FunctionInputValues with PrerequisiteInputValues?
 interface FunctionInputValues {
     name: string,
-    schema: string,
-    value_type: VALUE_TYPES,
+    type: string,
+    denominated_by: string,
 }
 
 interface PrerequisiteInputValues {
-    corresponds_to: string,
     name: string,
-    value_type: VALUE_TYPES,
+    type: string,
+    corresponds_to: string,
 }
 
 interface VespaContractResponse {
@@ -27,7 +50,7 @@ interface VespaContractResponse {
 }
 
 interface VespaDocumentResponse {
-    data: FunctionSchema
+    data: NewFunctionSchema
 }
 
 interface VespaContractResponseData {
@@ -41,7 +64,7 @@ interface VespaContractResponseData {
 interface Prerequisite {
     id: string,
     contract_to_call: string,
-    function_signature: string,
+    signature: string,
     inputs: PrerequisiteInputValues[]
 }
 
@@ -57,7 +80,7 @@ interface ContractSchema {
         functional_signature: string,
         contract_address: string,
         prerequisites: Prerequisite[],
-        input_values: FunctionInputValues[]
+        inputs: FunctionInputValues[]
     }
 }
 
@@ -89,7 +112,7 @@ interface FunctionSchema {
         functional_signature: string,
         contract_address: string,
         prerequisites: Prerequisite[],
-        input_values: FunctionInputValues[]
+        inputs: FunctionInputValues[]
     }
 }
 
@@ -100,4 +123,4 @@ enum VESPA_SCHEMA {
     METRIC
 }
 
-export {VespaContractResponse, VESPA_SCHEMA, FunctionSchema, FunctionInputValues, VespaFunctionResponse, VespaDocumentResponse}
+export {NewFunctionSchema, VespaContractResponse, VESPA_SCHEMA, FunctionSchema, FunctionInputValues, VespaFunctionResponse, VespaDocumentResponse, VespaFunctionResponseData, VespaContractResponseData}

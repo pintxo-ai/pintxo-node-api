@@ -11,7 +11,7 @@ class QueryService {
   async get(query: string) {
     let result;
     try {
-      result = qh.process(query)
+      result = qh.process(decodeURIComponent(query));
     } catch (error) {
       throw new GeneralError("The QueryService entrypoint failed.");
     }
