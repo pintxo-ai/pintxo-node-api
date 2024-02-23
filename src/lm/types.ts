@@ -6,5 +6,5 @@ export enum CLASSIFIER_LEVELS {
 
 export interface InputValue {
     value: string,
-    value_type: string
+    type: string
 }

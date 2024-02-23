@@ -2,7 +2,7 @@ import axios from 'axios';
 import qs from 'qs';
 
 import { GeneralError } from '@feathersjs/errors'
-import {VESPA_SCHEMA, VespaContractResponse, VespaFunctionResponse, VespaDocumentResponse, FunctionSchema} from './types'
+import {VESPA_SCHEMA, VespaContractResponse, VespaFunctionResponse, VespaDocumentResponse, NewFunctionSchema, VespaFunctionResponseData, VespaContractResponseData} from './types'
 
 /// VespaHandler responsible for handling all vespa calls.
 class VespaHandler {
@@ -14,25 +14,17 @@ class VespaHandler {
     ///     schema: string - the schema you want to search
     /// Returns:
     ///     VespaResponseData
-    async query(text: string, schema: VESPA_SCHEMA) {
+    async query(text: string, schema: VESPA_SCHEMA): Promise<VespaFunctionResponseData> {
         let body;
 
         if (schema == VESPA_SCHEMA.FUNCTION) {
             body = create_function_query(text);
-        } else if (schema == VESPA_SCHEMA.CONTRACT) {
-            body = 'should not get here'
         }
-        // else if (schema == VESPA_SCHEMA.PROTOCOL) { // TODO: IMPLEMENT ALONG WITH VESPA LABEL FINE TUNE MODEL
-        //     body = create_protocol_query(text);
-        // }
-        // else if (schema == VESPA_SCHEMA.METRIC) {
-        //     body = create_metric_query(text);
-        // }
-
+        
         try {
             const requestURL = `${process.env.VESPA_SEARCH_ENDPOINT}/?${qs.stringify(body)}`;
-            const result: VespaFunctionResponse = await axios.get(requestURL); // TODO: CREATE PARENT ABSTRACTION FOR VESPA RESPONSE -need to support other schema response or handle this logic differently with respective functions
-            return result.data.root.children
+            const result: VespaFunctionResponse = await axios.get(requestURL);
+            return result.data.root
         } catch (error) {
             throw new GeneralError('Something went wrong when searching vespa.', error)
         }
@@ -40,12 +32,12 @@ class VespaHandler {
 
     /// The least amount of compute possible for retrieval.
     /// does not guarentee accuracy or a return at all.
-    async fast_contract_address_retrieval(symbol: string) {
+    async fast_contract_address_retrieval(symbol: string): Promise<VespaContractResponseData> {
         const body = create_contract_query(symbol);
         const requestURL = `${process.env.VESPA_SEARCH_ENDPOINT}?${qs.stringify(body)}`;
         try {
             const result: VespaContractResponse = await axios.get(requestURL);
-            return result.data.root.children[0].fields
+            return result.data.root
         } catch(error) {
             throw new GeneralError("fast_contract_address_retrieval errored.", error)
         }
@@ -57,7 +49,7 @@ class VespaHandler {
     ///     id: string - the id you are searching for
     /// Returns:
     ///     VespaResponse
-    async get_function_by_id(id: string): Promise<FunctionSchema> {
+    async get_function_by_id(id: string): Promise<NewFunctionSchema> {
         const requestURL = `${process.env.VESPA_BASE_ENDPOINT}document/v1/pintxo/function/docid/${id}`;
         try {
             const result: VespaDocumentResponse = await axios.get(requestURL);

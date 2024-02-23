@@ -5,15 +5,14 @@ import qs from 'qs';
 import { ethers } from "ethers";
 import { SyndicateClient } from "@syndicateio/syndicate-node";
 import VespaHandler from '../vespa'; 
-import { VESPA_SCHEMA, FunctionSchema } from '../vespa/types';
-import { InputValue } from '../lm/types';
+import { VESPA_SCHEMA, NewFunctionSchema } from '../vespa/types';
 import LMHandler from '../lm';
 import { GeneralError } from '@feathersjs/errors';
-import { Interface } from 'ethers';
+import { logger } from '../logger'
 
 interface FunctionParameter {
   value: string; // Address or numeric values
-  value_type: 'address' | 'uint256' | 'string' | 'bytes'; // Possible types
+  type: 'caller_address' | 'address' | 'uint256' | 'string' | 'bytes'; // Possible types
 }
 // clients
 const syndicate = new SyndicateClient({ token: process.env.SYNDICATE_API_KEY || "no syndicate key"})
@@ -26,60 +25,58 @@ const CHAIN_ID=ethers.getNumber(process.env.BASE_CHAIN_ID || 8453);
 class TransactionHandler {
     async process(query: string) {
         let top_3_function_signatures = await vh.query(query, VESPA_SCHEMA.FUNCTION);
-        let formatted_function_signatures = top_3_function_signatures.map(entry => `signature:"${entry.fields.functional_signature}"\ndescription:"${entry.fields.description}"`).join('\n\n'); 
+        let formatted_function_signatures = top_3_function_signatures.children.map(entry => `signature:"${entry.fields.functional_signature}"\ndescription:"${entry.fields.description}"`).join('\n\n'); 
         
+        // this needs work. probably a finetune is essential.
         let parameters = await lm.extract_function_parameters(query, formatted_function_signatures);
-        let modified_parameters = await parse_for_contract_address_and_scale_by_decimals(parameters);
-        let chosen_function = await vh.get_function_by_id(modified_parameters.function.value);
-        let tx = await this.execute(chosen_function, modified_parameters);
 
-        return tx
+        let chosen_function = await vh.get_function_by_id(parameters.function);
+
+        let args = await parse_user_inputted_parameters(chosen_function, parameters);
+        let tx = await this.execute(chosen_function, args);
+        return tx        
     }
 
     // todo: add some type checking for params? Definitely needs some proper validation.
-    async execute(func: FunctionSchema, params: any) {
+    async execute(func: NewFunctionSchema, args: Record<string, string>) {
         // call any prerequisite functions
-        console.log(func);
-        console.log(params);
         if (func.fields.prerequisites) {
-            for (const [key, {id, contract_to_call, function_signature, inputs}] of Object.entries(func.fields.prerequisites)) {
-                let args: Record<string, string> = {}
-                for (const [key, {corresponds_to, name, value_type}] of Object.entries(inputs)) {
+            for (const [key, {id, contract_to_call, signature, inputs}] of Object.entries(func.fields.prerequisites)) {
+                let prereq_args: Record<string, string> = {}
+                for (const [key, {name, type, corresponds_to}] of Object.entries(inputs)) {
                     // special case when the main contract address being called is a param. ie, approvals
                     if (corresponds_to == 'contract_address') {
-                        args[name] = func.fields.contract_address
+                        prereq_args[name] = func.fields.contract_address
                     }
                     else {
-                        args[name] = params[corresponds_to].value
+                        prereq_args[name] = args[corresponds_to]
                     }
                 }
-                let tx = await this.__execute_function(function_signature, params[contract_to_call].value, args);
+
+                if (!process.env.DEV){
+                    let tx = await this.__execute_function(signature, args[contract_to_call], prereq_args);
+                    // need some way to verify that this tx has settled before continuing
+                    console.log(tx)
+                } 
             }
         }
         
-
-        let args: Record<string, string | {deploymentNonce: number, data: string}[] | number>;
         // special case for transformERC20, since it needs custom transformations data only available from the 0x api.
-        if (func.fields.name == 'swap') {
-            args = await get_args_for_swap(params.inputToken.value, params.outputToken.value, params.inputTokenAmount.value);
+        if (!process.env.DEV){
+            if (func.fields.name == 'swap') {
+                let swap_args = await get_args_for_swap(args.inputToken, args.outputToken, args.inputTokenAmount);
+                let tx = await this.__execute_function(func.fields.signature, func.fields.contract_address, swap_args);
+                return tx
+            } else {
+                let tx = await this.__execute_function(func.fields.signature, func.fields.contract_address, args);
+                return tx
+            }
         } else {
-            args = parse_and_validate_params(func.fields.signature, params);
-        }
-
-        // horrible hard code. I realize now I need to write a whole parser and reformat vespa.
-        if (args['onBehalfOf'] == '') {
-            args['onBehalfOf'] = "0x7BB037dAd988406e1e399780E508518599CD4370"
-        }
-
-        if (args) {
-            let tx = await this.__execute_function(func.fields.signature, func.fields.contract_address, args);
-            return tx
-        } else {
-            throw new GeneralError("no args")
+            return {message: "You are on dev mode!", args: args}
         }
     }
 
-    /// this function actually handles execution, all scaling/retrival should be done before inputting into this.
+    /// this function handles execution, all scaling/retrival should be done before inputting into this.
     async __execute_function(function_signature: string, contract_to_call: string, args: Record<string, string | {deploymentNonce: number, data: string}[] | number>){
         let result;
         try {
@@ -96,38 +93,6 @@ class TransactionHandler {
         return result
     }
 }
-
-function parse_and_validate_params(
-    functionSignature: string,
-    functionParams: Record<string, FunctionParameter>,
-  ): Record<string, string> { 
-    const iface = new Interface(["function "+functionSignature]);
-    
-    // 1. Extract Expected Parameters
-    let expectedParams = JSON.parse(iface.formatJson())
-    
-    // 2. Create a fully populated object
-    const parsedObject: Record<string, string> = {
-      ...expectedParams[0].inputs.reduce((acc: any, input: any) => ({ ...acc, [input.name]:  '' }), {})
-    };
-          
-    // 3. Populate and Validate
-    for (const key in functionParams) {
-      if (parsedObject.hasOwnProperty(key)) { 
-        const param = functionParams[key];
-        let value = param.value;
-        
-        // Type Validation (you can be more specific based on your needs)
-        if (param.value_type === 'address') {
-          if (!ethers.isAddress(value)) throw new GeneralError("not valid address"); 
-        }
-
-        parsedObject[key] = value; 
-      }
-    }
-  
-    return parsedObject; 
-  }
 
 async function get_args_for_swap(sellToken: string, buyToken: string, sellAmount: string) {
     let abi = [
@@ -167,31 +132,79 @@ async function get_args_for_swap(sellToken: string, buyToken: string, sellAmount
     return args
 }
 
-async function parse_for_contract_address_and_scale_by_decimals(result: Record<string, InputValue>) {
-    for (const [key, {value, value_type}] of Object.entries(result)) {
-        if (value_type == 'address') {
-            let new_value = await vh.fast_contract_address_retrieval(value)
-            result[key].value = new_value.contract_address;
-
-            // add some sort of relationship between these two in the document?
-            // some sort of graph parse to validate all relationships or something.
-            // maybe that is overkill, and the existance of inputToken is enough to assume inputTokenAmount should also be in the signature.
-            // Update: this really needs logic so this doesn't need to be hardcoded.
-            if (key == 'inputToken'){
-                result['inputTokenAmount'].value = ethers.parseUnits(result['inputTokenAmount'].value, new_value.decimals).toString();
-            } else if (key == 'asset') {
-                result['amount'].value = ethers.parseUnits(result['amount'].value, new_value.decimals).toString();
+async function parse_user_inputted_parameters(func: NewFunctionSchema, result: Record<string, string>): Promise<Record<string, string>> {
+    let args: Record<string, string> = {};
+    
+    for (const [key, input] of Object.entries(func.fields.inputs)) {
+        // if our parsed yaml contains the input string
+        if (key in result) {
+            // if denominated_by is specified, this needs to be scaled. 
+            if (input.denominated_by) {
+                let contract = await vh.fast_contract_address_retrieval(result[input.denominated_by]);
+                args[key] = ethers.parseUnits(result[key].toString(), contract.children[0].fields.decimals).toString();
             }
-        }
+            else if (input.type == 'address') {
+                let contract = await vh.fast_contract_address_retrieval(result[key])
+                args[key] = contract.children[0].fields.contract_address
+            } else {
+                args[key] = result[key]
+            }
+        } else {
+            if (input.type == 'caller_address') {
+                 // once we know how syndicate account abstraction works, we would fire in the user's address.
+                args[key] = "0x7bb037dad988406e1e399780e508518599cd4370"
+            }
+            else if (input.type == "contract_address") {
+                args[key] = func.fields.contract_address
+            }
+            else {
+                args[key] = ''
+            }
+        } 
     }
-    return result
-}
-
-function sleep(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return args
 }
 
 export default TransactionHandler
+
+
+// function parse_and_validate_params(
+//     func: NewFunctionSchema,
+//     functionParams: Record<string, FunctionParameter>,
+//   ): Record<string, string> { 
+
+//     const iface = new Interface(["function "+func.fields.signature]);
+    
+//     let expectedParams = JSON.parse(iface.formatJson())
+    
+//     const parsedObject: Record<string, string> = {
+//       ...expectedParams[0].inputs.reduce((acc: any, input: any) => ({ ...acc, [input.name]:  '' }), {})
+//     };
+          
+//     for (const key in functionParams) {
+//       if (parsedObject.hasOwnProperty(key)) { 
+//         const param = functionParams[key];
+//         let value = param.value;
+        
+//         // tiny bit of validation
+//         if (param.type === 'address') {
+//           if (!ethers.isAddress(value)) throw new GeneralError("not valid address"); 
+//         }
+//         parsedObject[key] = value; 
+//       }
+//     }
+
+//     for (const [k, {name, type, denominated_by}] of Object.entries(func.fields.inputs)) {
+//         if (parsedObject.hasOwnProperty(name)) { 
+//             if (type == 'caller_address') {
+//                 // once we know how syndicate account abstraction works, we would fire in this.
+//                 parsedObject[name] = "0x7bb037dad988406e1e399780e508518599cd4370"
+//             }
+//         }
+//     }
+  
+//     return parsedObject; 
+//   }
 
 // keep this comment because it's the only reference for using syndicate's sendTransactionWithValue endpoint.
 // async wrapEth() {

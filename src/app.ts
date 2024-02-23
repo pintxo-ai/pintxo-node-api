@@ -1,7 +1,8 @@
+import 'dotenv/config';
+
 import { feathers } from '@feathersjs/feathers'
 import { koa, rest, bodyParser, errorHandler, serveStatic } from '@feathersjs/koa'
 import { GeneralError } from '@feathersjs/errors';
-import 'dotenv/config';
 import QueryHandler from './query';
 
 
@@ -11,7 +12,7 @@ class QueryService {
   async get(query: string) {
     let result;
     try {
-      result = qh.process(query)
+      result = qh.process(decodeURIComponent(query));
     } catch (error) {
       throw new GeneralError("The QueryService entrypoint failed.");
     }

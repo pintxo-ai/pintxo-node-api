@@ -1,6 +1,8 @@
 import axios from 'axios';
 import { CohereClient } from "cohere-ai";
 import { InputValue, CLASSIFIER_LEVELS } from "./types";
+import { parse, stringify } from 'yaml'
+import { GeneralError } from '@feathersjs/errors';
 
 const cohere = new CohereClient({
     token: process.env.COHERE_API_KEY || "invalid, set COHERE_API_KEY in .env",
@@ -13,7 +15,19 @@ class LMHandler {
             prompt: get_formatted_prompt(user_input, relevant_functions),
             temperature: 0,
         });
-        return decompose_string(cohere_response.generations[0].text);
+        try {
+            return decompose_string(cohere_response.generations[0].text);
+        } catch (error) {
+            try {
+                let yaml_retry = await cohere.generate({
+                    prompt: get_retry_prompt(cohere_response.generations[0].text),
+                    temperature: 0,
+                });
+                return decompose_string(yaml_retry.generations[0].text);
+            } catch (e){
+                throw new GeneralError("Both initial YAML generation and subsequent retry failed to format proper YAML.")
+            }
+        }
     }
 
     async classify(user_input: string, level: CLASSIFIER_LEVELS){
@@ -82,10 +96,8 @@ class LMHandler {
     
         try {
             const response = await axios.post('https://api.perplexity.ai/chat/completions', data, config); // TODO: MAKE API URL ENV VAR - ${process.env.PERPLEXITY_API_URL}
-            console.log(response.data);
             return response.data;
         } catch (error) {
-            console.log(axios.isAxiosError(error) ? error.response : error);
             return { 'RESPONSE': 'NOT FOUND' };
         }
     }
@@ -96,8 +108,12 @@ function get_formatted_prompt(text: string, signature: string) {
     const prompt =  `You are in charge of identifying input parameters for a function signature based on a user given input. 
     You must return the data you extract in the form:
 
-    [PARAMETER_ONE]:[PARAMETER_ONE_VALUE]:[PARAMETER_ONE_TYPE]
-    [PARAMETER_TWO]:[PARAMETER_TWO_VALUE]:[PARAMETER_TWO_TYPE]
+    [PARAMETER_ONE]:
+        value: [PARAMETER_ONE_VALUE]:
+        type: [PARAMETER_ONE_TYPE]
+    [PARAMETER_TWO]:
+        value: [PARAMETER_TWO_VALUE]
+        type: [PARAMETER_TWO_TYPE]
 
     Here's an example to follow:
     <example>
@@ -112,8 +128,13 @@ function get_formatted_prompt(text: string, signature: string) {
     signature:"approve(address guy, uint256 wad)"
     description:"Approval function for erc20 or erc721 contracts."
 
-    your output should be:
-    function:aave_deposit:none##asset:ETH:address##amount:ALL:uint256
+    Output:
+    function:
+        aave_deposit
+    asset:
+        ETH
+    amount:
+        ALL
     </example>
     
     Now you give it a go:
@@ -124,22 +145,47 @@ function get_formatted_prompt(text: string, signature: string) {
 
     and here is the user input you are to process:
 
-    ${decodeURIComponent(text)}
+    ${text}
 
-    Remember, your response should be strictly the output with no justification. 
+    Do not return anything except the YAML.
     Output:
     `
     return prompt
 } 
 
-function decompose_string(input: string): Record<string, InputValue> {
-    const pairs = input.split('##'); 
-    const result: Record<string, InputValue> = {};
-    pairs.forEach(pair => {
-        const [key, value, value_type] = pair.split(':');
-        result[key] = {value, value_type}; 
-      });
-    return result;
+// I have been having issues with GeneralError. So if this errors, it may not be graceful.
+// once I move to hooks, this will be much better.
+function decompose_string(input: string): Record<string, string> {
+    try {
+        return parse(input)
+    } catch (error) {
+        for (const maybe_yaml of input.split('```')) {
+            try {
+                let yaml = parse(maybe_yaml);
+                if (yaml != null){
+                    return yaml
+                } else {
+                    throw new GeneralError("yaml parsing failed.");
+                }
+            } catch (e) {
+                throw new GeneralError("yaml parsing failed.", e)
+            }
+        }
+        throw new GeneralError("no yaml was successfully generated."); 
+    }
+}
+
+function get_retry_prompt(input: string): string {
+    return `
+    Below is data that is supposed to be yaml formatted. 
+    Sometimes this string will have an extra sentence at the end. ignore that.
+
+
+    Format the following broken-yaml into yaml:
+    ${input}
+
+    YAML:
+    `
 }
 
 
