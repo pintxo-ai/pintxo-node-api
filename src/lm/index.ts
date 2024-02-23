@@ -96,10 +96,8 @@ class LMHandler {
     
         try {
             const response = await axios.post('https://api.perplexity.ai/chat/completions', data, config); // TODO: MAKE API URL ENV VAR - ${process.env.PERPLEXITY_API_URL}
-            console.log(response.data);
             return response.data;
         } catch (error) {
-            console.log(axios.isAxiosError(error) ? error.response : error);
             return { 'RESPONSE': 'NOT FOUND' };
         }
     }
@@ -130,15 +128,13 @@ function get_formatted_prompt(text: string, signature: string) {
     signature:"approve(address guy, uint256 wad)"
     description:"Approval function for erc20 or erc721 contracts."
 
-    your output should be:
-
+    Output:
     function:
         aave_deposit
     asset:
         ETH
     amount:
         ALL
-
     </example>
     
     Now you give it a go:
@@ -151,31 +147,44 @@ function get_formatted_prompt(text: string, signature: string) {
 
     ${text}
 
-    Remember, your response should be strictly the output with no justification. Do not say anything after you have given the YAML.
+    Do not return anything except the YAML.
     Output:
     `
     return prompt
 } 
 
+// I have been having issues with GeneralError. So if this errors, it may not be graceful.
+// once I move to hooks, this will be much better.
 function decompose_string(input: string): Record<string, string> {
     try {
         return parse(input)
     } catch (error) {
-        try {
-            return parse(input.split('```')[0])
-        } catch (e) {
-            throw new GeneralError("yaml parsing failed.")
+        for (const maybe_yaml of input.split('```')) {
+            try {
+                let yaml = parse(maybe_yaml);
+                if (yaml != null){
+                    return yaml
+                } else {
+                    throw new GeneralError("yaml parsing failed.");
+                }
+            } catch (e) {
+                throw new GeneralError("yaml parsing failed.", e)
+            }
         }
+        throw new GeneralError("no yaml was successfully generated."); 
     }
 }
 
 function get_retry_prompt(input: string): string {
     return `
-    I want you to fix the following input into proper YAML formatting. Sometimes this string will have an extra sentence at the end. ignore that. Don't include \`\`\`.
+    Below is data that is supposed to be yaml formatted. 
+    Sometimes this string will have an extra sentence at the end. ignore that.
 
-    Input:
+
+    Format the following broken-yaml into yaml:
     ${input}
-    Output:
+
+    YAML:
     `
 }
 

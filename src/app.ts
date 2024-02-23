@@ -1,7 +1,8 @@
+import 'dotenv/config';
+
 import { feathers } from '@feathersjs/feathers'
 import { koa, rest, bodyParser, errorHandler, serveStatic } from '@feathersjs/koa'
 import { GeneralError } from '@feathersjs/errors';
-import 'dotenv/config';
 import QueryHandler from './query';
 
 

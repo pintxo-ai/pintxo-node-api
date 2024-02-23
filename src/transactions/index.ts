@@ -8,7 +8,7 @@ import VespaHandler from '../vespa';
 import { VESPA_SCHEMA, NewFunctionSchema } from '../vespa/types';
 import LMHandler from '../lm';
 import { GeneralError } from '@feathersjs/errors';
-import { Interface } from 'ethers';
+import { logger } from '../logger'
 
 interface FunctionParameter {
   value: string; // Address or numeric values
@@ -29,6 +29,7 @@ class TransactionHandler {
         
         // this needs work. probably a finetune is essential.
         let parameters = await lm.extract_function_parameters(query, formatted_function_signatures);
+
         let chosen_function = await vh.get_function_by_id(parameters.function);
 
         let args = await parse_user_inputted_parameters(chosen_function, parameters);
@@ -41,19 +42,19 @@ class TransactionHandler {
         // call any prerequisite functions
         if (func.fields.prerequisites) {
             for (const [key, {id, contract_to_call, signature, inputs}] of Object.entries(func.fields.prerequisites)) {
-                let args: Record<string, string> = {}
+                let prereq_args: Record<string, string> = {}
                 for (const [key, {name, type, corresponds_to}] of Object.entries(inputs)) {
                     // special case when the main contract address being called is a param. ie, approvals
                     if (corresponds_to == 'contract_address') {
-                        args[name] = func.fields.contract_address
+                        prereq_args[name] = func.fields.contract_address
                     }
                     else {
-                        args[name] = args[corresponds_to]
+                        prereq_args[name] = args[corresponds_to]
                     }
                 }
 
                 if (!process.env.DEV){
-                    let tx = await this.__execute_function(signature, args[contract_to_call], args);
+                    let tx = await this.__execute_function(signature, args[contract_to_call], prereq_args);
                     // need some way to verify that this tx has settled before continuing
                     console.log(tx)
                 } 
