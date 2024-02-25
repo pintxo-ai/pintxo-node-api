@@ -1,0 +1,9 @@
+{
+    "host": "localhost",
+  "port": 3030,
+  "public" : "",
+"origins": [
+    "http://localhost:3030",
+    "http://localhost:3000"
+  ]
+}
