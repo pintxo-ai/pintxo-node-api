@@ -6,6 +6,14 @@ enum VALUE_TYPES {
     uint256,
 }
 
+interface VespaError {
+    error: {
+        message: string,
+        method: string,
+        url: string
+    }
+}
+
 interface NewFunctionSchema {
     pathId: string,
     id: string,
@@ -123,4 +131,4 @@ enum VESPA_SCHEMA {
     METRIC
 }
 
-export {NewFunctionSchema, VespaContractResponse, VESPA_SCHEMA, FunctionSchema, FunctionInputValues, VespaFunctionResponse, VespaDocumentResponse, VespaFunctionResponseData, VespaContractResponseData}
+export {NewFunctionSchema, VespaContractResponse, VESPA_SCHEMA, VespaError, FunctionSchema, FunctionInputValues, VespaFunctionResponse, VespaDocumentResponse, VespaFunctionResponseData, VespaContractResponseData}

@@ -26,7 +26,7 @@ class VespaHandler {
             const result: VespaFunctionResponse = await axios.get(requestURL);
             return result.data.root
         } catch (error) {
-            throw new GeneralError('Something went wrong when searching vespa.', error)
+            throw new GeneralError('Querying Vespa failed. Is the vespa container running?', { "error": error, "function": "VespaHander.query", inputs: {"text": text, "schema": schema}})
         }
     }
 
@@ -39,7 +39,7 @@ class VespaHandler {
             const result: VespaContractResponse = await axios.get(requestURL);
             return result.data.root
         } catch(error) {
-            throw new GeneralError("fast_contract_address_retrieval errored.", error)
+            throw new GeneralError("fast_contract_address_retrieval errored.", { "error": error, "function": "fast_contract_address_retrieval", "inputs": {"symbol":symbol}})
         }
     }
 
@@ -55,7 +55,7 @@ class VespaHandler {
             const result: VespaDocumentResponse = await axios.get(requestURL);
             return result.data
         } catch(error) {
-            throw new GeneralError("get_function_by_id errored.", error)
+            throw new GeneralError("get_function_by_id errored.", { "error":error, "function":"get_function_by_id", "inputs": {"id": id} })
         }
     }
 }
