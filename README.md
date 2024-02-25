@@ -6,6 +6,10 @@
 
 `npx ts-node src/app.ts`
 
+## docker
+
+`docker compose up --build`
+
 ## TODO
 
 - write vespa handler

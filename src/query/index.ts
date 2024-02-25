@@ -20,12 +20,16 @@ class QueryHandler {
         if (decision == 'transaction') {
             return th.process(query)
         }
-        else if (decision == 'query') {
+        else if (decision == 'data') {
+            // alex: remove this once you're done. this is just for me testing.
+            throw new GeneralError("data query is not implemeneted")
             return dh.process(query)
         }
         else if (decision == 'combo') {
-            return "TODO"
+            throw new GeneralError("combo decision is not implemeneted")
         }
+
+        throw new GeneralError("none of the classifications were hit.")
     }
 }
 

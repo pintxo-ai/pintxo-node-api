@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-import { feathers } from '@feathersjs/feathers'
+import { feathers, type HookContext, type NextFunction } from '@feathersjs/feathers'
 import { koa, rest, bodyParser, errorHandler, serveStatic } from '@feathersjs/koa'
 import { GeneralError } from '@feathersjs/errors';
 import QueryHandler from './query';
@@ -35,6 +35,16 @@ app.use(bodyParser())
 // Register REST service handler
 app.configure(rest())
 app.use('query', new QueryService())
+
+app.hooks({
+  error: {
+    all: [
+      async (context: HookContext) => {
+        console.error(context)
+      }
+    ]
+  }
+})
 
 // Start the server
 app

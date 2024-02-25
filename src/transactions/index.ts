@@ -8,7 +8,6 @@ import VespaHandler from '../vespa';
 import { VESPA_SCHEMA, NewFunctionSchema } from '../vespa/types';
 import LMHandler from '../lm';
 import { GeneralError } from '@feathersjs/errors';
-import { logger } from '../logger'
 
 interface FunctionParameter {
   value: string; // Address or numeric values
@@ -25,6 +24,8 @@ const CHAIN_ID=ethers.getNumber(process.env.BASE_CHAIN_ID || 8453);
 class TransactionHandler {
     async process(query: string) {
         let top_3_function_signatures = await vh.query(query, VESPA_SCHEMA.FUNCTION);
+        
+        // format the top_3_function signatures as a string.
         let formatted_function_signatures = top_3_function_signatures.children.map(entry => `signature:"${entry.fields.functional_signature}"\ndescription:"${entry.fields.description}"`).join('\n\n'); 
         
         // this needs work. probably a finetune is essential.
@@ -88,7 +89,7 @@ class TransactionHandler {
                 args: args,
             })
         } catch (error) {
-            throw new GeneralError("tx errored", error);
+            throw new GeneralError("syndicate tx call failed.", {"inputs": {"function_signature": function_signature, "contract_to_call": contract_to_call, "args": args}, "error": error});
         }
         return result
     }
@@ -141,7 +142,11 @@ async function parse_user_inputted_parameters(func: NewFunctionSchema, result: R
             // if denominated_by is specified, this needs to be scaled. 
             if (input.denominated_by) {
                 let contract = await vh.fast_contract_address_retrieval(result[input.denominated_by]);
-                args[key] = ethers.parseUnits(result[key].toString(), contract.children[0].fields.decimals).toString();
+                try {
+                    args[key] = ethers.parseUnits(result[key].toString(), contract.children[0].fields.decimals).toString();
+                } catch (error) {
+                    throw new GeneralError("there was an error scaling units in tx.", {"error" : error, "inputs": {"key": key, "value":  result[key].toString(), "function": func, "parameters": result}})
+                }
             }
             else if (input.type == 'address') {
                 let contract = await vh.fast_contract_address_retrieval(result[key])

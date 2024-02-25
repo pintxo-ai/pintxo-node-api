@@ -11,13 +11,17 @@ const cohere = new CohereClient({
 /// Handles all logic associated with calling a LM api. 
 class LMHandler {
     async extract_function_parameters(user_input: string, relevant_functions: any) {
+
+        // first shot
         let cohere_response = await cohere.generate({
             prompt: get_formatted_prompt(user_input, relevant_functions),
             temperature: 0,
         });
+
         try {
             return decompose_string(cohere_response.generations[0].text);
         } catch (error) {
+            // retry if first chance failed.
             try {
                 let yaml_retry = await cohere.generate({
                     prompt: get_retry_prompt(cohere_response.generations[0].text),
@@ -25,30 +29,28 @@ class LMHandler {
                 });
                 return decompose_string(yaml_retry.generations[0].text);
             } catch (e){
-                throw new GeneralError("Both initial YAML generation and subsequent retry failed to format proper YAML.")
+                throw new GeneralError("Both initial YAML generation and subsequent retry failed to format proper YAML. This event should be stored.", { "error": e, "initial_input": user_input, "initial_response": cohere_response })
             }
         }
     }
 
     async classify(user_input: string, level: CLASSIFIER_LEVELS){
         if (level == CLASSIFIER_LEVELS.LEVEL_ONE) {
-            return (await cohere.classify({
-                model: process.env.LEVEL_ONE_CLASSIFIER, // classifier v0.1
-                inputs: [user_input],
-                examples: []
-            })).classifications[0].prediction
+            
+            try {
+                let classification = await cohere.classify({
+                    model: process.env.LEVEL_ONE_CLASSIFIER, // classifier v0.1
+                    inputs: [user_input],
+                    examples: []
+                })
+                return classification.classifications[0].prediction
+            } catch (error) {
+                throw new GeneralError("lm classification call failed", {error})
+            }
         }
-        if (level == CLASSIFIER_LEVELS.LEVEL_TWO) {
-            // coming soon?
-        }
+
+        // this should be inside the above IF statement. ie, DATA_LEVEL_ONE is accessed after the LEVEL_ONE being 'data'
         if (level == CLASSIFIER_LEVELS.DATA_LEVEL_ONE) {
-            // return (await cohere.classify({
-            //     model: process.env.DATA_LEVEL_ONE_CLASSIFIER, // query_level_one_classifier_v0.1
-            //     inputs: [user_input],
-            //     examples: []
-            // })).classifications[0].prediction
-            // TO FINISH, WILL FINISH TRAINING SCRIPT & TUNE MODEL TMR
-            return ""
         }
     }
 
@@ -164,14 +166,12 @@ function decompose_string(input: string): Record<string, string> {
                 let yaml = parse(maybe_yaml);
                 if (yaml != null){
                     return yaml
-                } else {
-                    throw new GeneralError("yaml parsing failed.");
                 }
             } catch (e) {
-                throw new GeneralError("yaml parsing failed.", e)
+                throw new GeneralError("yaml parsing failed.", {"intial_input" : input})
             }
         }
-        throw new GeneralError("no yaml was successfully generated."); 
+        throw new GeneralError("no yaml was successfully generated.", { "intial_input" : input}); 
     }
 }
 
