@@ -7,7 +7,7 @@ import { SyndicateClient } from "@syndicateio/syndicate-node";
 import VespaHandler from '../vespa'; 
 import { VESPA_SCHEMA, NewFunctionSchema } from '../vespa/types';
 import LMHandler from '../lm';
-import { TransactionError } from '../errors';
+import { LanguageModelError, TransactionError } from '../errors';
 import {TX_ERROR_CLASSES} from '../errors/types';
 
 interface FunctionParameter {
