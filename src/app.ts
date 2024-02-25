@@ -1,10 +1,13 @@
 import 'dotenv/config';
 
 import { feathers, type HookContext, type NextFunction } from '@feathersjs/feathers'
-import { koa, rest, bodyParser, errorHandler, serveStatic } from '@feathersjs/koa'
+import { koa, rest, bodyParser, errorHandler, serveStatic, Application } from '@feathersjs/koa'
 import { GeneralError } from '@feathersjs/errors';
 import QueryHandler from './query';
 import RedisHandler from './redis';
+import configuration from '@feathersjs/configuration'
+import { cors } from '@feathersjs/koa';
+import { configurationValidator } from './configuration';
 
 // please increment this everytime the api is redployed to keep errors from being overlapped
 let VERSION = "0.1"
@@ -31,14 +34,19 @@ type ServiceTypes = {
 }
 
 // Creates an KoaJS compatible Feathers application
-const app = koa<ServiceTypes>(feathers())
+const app: Application = koa(feathers())
 
+// Enable CORS (more configuration options later)
+app.configure(configuration(configurationValidator))
+
+app.use(cors());
 app.use(errorHandler())
 app.use(serveStatic('.'))
 app.use(bodyParser())
 
 // Register REST service handler
 app.configure(rest())
+
 app.use('query', new QueryService())
 
 // this is where the error layer should log the error to redis
@@ -59,6 +67,7 @@ app.hooks({
     ]
   },
 })
+
 
 // save the initial query for accessing in an error.
 app.service('query').hooks({

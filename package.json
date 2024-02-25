@@ -11,15 +11,19 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@types/node": "^20.11.19",
+    "@types/node": "^20.11.20",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@feathersjs/errors": "^5.0.22",
-    "@feathersjs/feathers": "^5.0.22",
-    "@feathersjs/koa": "^5.0.22",
-    "@feathersjs/socketio": "^5.0.22",
+    "@feathersjs/configuration": "^5.0.23",
+    "@feathersjs/errors": "^5.0.23",
+    "@feathersjs/feathers": "^5.0.23",
+    "@feathersjs/koa": "^5.0.23",
+    "@feathersjs/schema": "^5.0.23",
+    "@feathersjs/socketio": "^5.0.23",
+    "@feathersjs/typebox": "^5.0.23",
+    "@koa/cors": "^5.0.0",
     "@syndicateio/syndicate-node": "^0.0.449",
     "@types/qs": "^6.9.11",
     "axios": "^1.6.7",
@@ -29,6 +33,6 @@
     "qs": "^6.11.2",
     "redis": "^4.6.13",
     "winston": "^3.11.0",
-    "yaml": "^2.3.4"
+    "yaml": "^2.4.0"
   }
 }
