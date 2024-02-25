@@ -1,9 +1,9 @@
 import axios from 'axios';
 import qs from 'qs';
 
-import { GeneralError } from '@feathersjs/errors'
 import {VESPA_SCHEMA, VespaContractResponse, VespaFunctionResponse, VespaDocumentResponse, NewFunctionSchema, VespaFunctionResponseData, VespaContractResponseData} from './types'
-
+import { VespaError } from '../errors';
+import {VESPA_ERROR_CLASSES} from '../errors/types'
 /// VespaHandler responsible for handling all vespa calls.
 class VespaHandler {
     
@@ -26,7 +26,7 @@ class VespaHandler {
             const result: VespaFunctionResponse = await axios.get(requestURL);
             return result.data.root
         } catch (error) {
-            throw new GeneralError('Querying Vespa failed. Is the vespa container running?', { "error": error, "function": "VespaHander.query", inputs: {"text": text, "schema": schema}})
+            throw new VespaError('Querying Vespa failed. Is the vespa container running?', VESPA_ERROR_CLASSES.NOT_RUNNING, {'function': 'query', 'user_input': text, 'schema': schema, 'inputs': body || {}, 'message': error as string})
         }
     }
 
@@ -39,7 +39,7 @@ class VespaHandler {
             const result: VespaContractResponse = await axios.get(requestURL);
             return result.data.root
         } catch(error) {
-            throw new GeneralError("fast_contract_address_retrieval errored.", { "error": error, "function": "fast_contract_address_retrieval", "inputs": {"symbol":symbol}})
+            throw new VespaError("fast_contract_address_retrieval errored.", VESPA_ERROR_CLASSES.NOT_FOUND, { "function": "fast_contract_address_retrieval", "message": error as string, "schema": VESPA_SCHEMA.CONTRACT,"inputs": {"symbol":symbol}})
         }
     }
 
@@ -55,7 +55,7 @@ class VespaHandler {
             const result: VespaDocumentResponse = await axios.get(requestURL);
             return result.data
         } catch(error) {
-            throw new GeneralError("get_function_by_id errored.", { "error":error, "function":"get_function_by_id", "inputs": {"id": id} })
+            throw new VespaError("get_function_by_id errored.", VESPA_ERROR_CLASSES.NOT_FOUND, { "function": "get_function_by_id", "message": error as string, "schema": VESPA_SCHEMA.FUNCTION,"inputs": {"id":id}})
         }
     }
 }
@@ -63,7 +63,7 @@ class VespaHandler {
 /// todo, this query creation needs to be abstracted away.
 /// until we unify the backend and figure that out, all queries will be different. 
 /// so gonna hardcode each schema (ie, 'function' or 'contract') as a diff query creation.
-function create_function_query(text: string, limit: number = 5) {
+function create_function_query(text: string, limit: number = 5): Record<string, string> {
     return {
         "input.query(q)": `embed(e5, @query)`,
         "input.query(qt)": `embed(colbert, @query)`,

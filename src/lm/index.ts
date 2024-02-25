@@ -1,8 +1,9 @@
 import axios from 'axios';
 import { CohereClient } from "cohere-ai";
-import { InputValue, CLASSIFIER_LEVELS } from "./types";
-import { parse, stringify } from 'yaml'
-import { GeneralError } from '@feathersjs/errors';
+import { CLASSIFIER_LEVELS } from "./types";
+import { parse } from 'yaml';
+import { LanguageModelError } from '../errors';
+import { LM_ERROR_CLASSES } from '../errors/types';
 
 const cohere = new CohereClient({
     token: process.env.COHERE_API_KEY || "invalid, set COHERE_API_KEY in .env",
@@ -29,23 +30,22 @@ class LMHandler {
                 });
                 return decompose_string(yaml_retry.generations[0].text);
             } catch (e){
-                throw new GeneralError("Both initial YAML generation and subsequent retry failed to format proper YAML. This event should be stored.", { "error": e, "initial_input": user_input, "initial_response": cohere_response })
+                throw new LanguageModelError("failed to extract_function_parameters.", LM_ERROR_CLASSES.BAD_YAML, {"function" : "extract_function_parameters", "message": error as string, "user_input": user_input, "first_generation": cohere_response.generations[0].text})
             }
         }
     }
 
     async classify(user_input: string, level: CLASSIFIER_LEVELS){
         if (level == CLASSIFIER_LEVELS.LEVEL_ONE) {
-            
+            let classification = await cohere.classify({
+                model: process.env.LEVEL_ONE_CLASSIFIER, // classifier v0.1
+                inputs: [user_input],
+                examples: []
+            })
             try {
-                let classification = await cohere.classify({
-                    model: process.env.LEVEL_ONE_CLASSIFIER, // classifier v0.1
-                    inputs: [user_input],
-                    examples: []
-                })
                 return classification.classifications[0].prediction
             } catch (error) {
-                throw new GeneralError("lm classification call failed", {error})
+                throw new LanguageModelError("failed to classify.", LM_ERROR_CLASSES.BAD_CLASSIFY, {"function" : "classify", "message": error as string, "user_input": user_input, "first_generation": classification.classifications[0].prediction || "none"})
             }
         }
 
@@ -167,11 +167,9 @@ function decompose_string(input: string): Record<string, string> {
                 if (yaml != null){
                     return yaml
                 }
-            } catch (e) {
-                throw new GeneralError("yaml parsing failed.", {"intial_input" : input})
-            }
+            } catch (e) {}
         }
-        throw new GeneralError("no yaml was successfully generated.", { "intial_input" : input}); 
+        throw new LanguageModelError("yaml parsing failed.", LM_ERROR_CLASSES.BAD_YAML, {"function" : "decompose_string", "message": error as string, "user_input": input, "first_generation": ""})
     }
 }
 

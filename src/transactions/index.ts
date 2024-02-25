@@ -7,7 +7,8 @@ import { SyndicateClient } from "@syndicateio/syndicate-node";
 import VespaHandler from '../vespa'; 
 import { VESPA_SCHEMA, NewFunctionSchema } from '../vespa/types';
 import LMHandler from '../lm';
-import { GeneralError } from '@feathersjs/errors';
+import { TransactionError } from '../errors';
+import {TX_ERROR_CLASSES} from '../errors/types';
 
 interface FunctionParameter {
   value: string; // Address or numeric values
@@ -23,19 +24,23 @@ const CHAIN_ID=ethers.getNumber(process.env.BASE_CHAIN_ID || 8453);
 /// TransactionHandler class for executing transactions.
 class TransactionHandler {
     async process(query: string) {
-        let top_3_function_signatures = await vh.query(query, VESPA_SCHEMA.FUNCTION);
-        
+        let top_function_signatures = await vh.query(query, VESPA_SCHEMA.FUNCTION);
+
         // format the top_3_function signatures as a string.
-        let formatted_function_signatures = top_3_function_signatures.children.map(entry => `signature:"${entry.fields.functional_signature}"\ndescription:"${entry.fields.description}"`).join('\n\n'); 
+        let formatted_function_signatures = top_function_signatures.children.map(entry => `signature:"${entry.fields.functional_signature}"\ndescription:"${entry.fields.description}"`).join('\n\n'); 
         
         // this needs work. probably a finetune is essential.
         let parameters = await lm.extract_function_parameters(query, formatted_function_signatures);
 
         let chosen_function = await vh.get_function_by_id(parameters.function);
 
-        let args = await parse_user_inputted_parameters(chosen_function, parameters);
-        let tx = await this.execute(chosen_function, args);
-        return tx        
+        try {
+            let args = await parse_user_inputted_parameters(chosen_function, parameters);
+            let tx = await this.execute(chosen_function, args);
+            return tx        
+        } catch (e) {
+            throw new TransactionError("transaction failed.", TX_ERROR_CLASSES.FAILED_TX, {"function": "parse_user_inputted_parameters", "user_input": query, "message": e as string, "function_signature": chosen_function.fields.signature, "contract_to_call": chosen_function.fields.contract_address, "args": parameters, "top_functions": top_function_signatures.children.map(entry => entry.fields.documentid)});
+        }
     }
 
     // todo: add some type checking for params? Definitely needs some proper validation.
@@ -89,7 +94,7 @@ class TransactionHandler {
                 args: args,
             })
         } catch (error) {
-            throw new GeneralError("syndicate tx call failed.", {"inputs": {"function_signature": function_signature, "contract_to_call": contract_to_call, "args": args}, "error": error});
+            throw new TransactionError("syndicate tx call failed.", TX_ERROR_CLASSES.FAILED_TX, {"function": "__execute_function", "message": error as string, "function_signature": function_signature, "contract_to_call": contract_to_call, "args": args});
         }
         return result
     }
@@ -142,11 +147,7 @@ async function parse_user_inputted_parameters(func: NewFunctionSchema, result: R
             // if denominated_by is specified, this needs to be scaled. 
             if (input.denominated_by) {
                 let contract = await vh.fast_contract_address_retrieval(result[input.denominated_by]);
-                try {
-                    args[key] = ethers.parseUnits(result[key].toString(), contract.children[0].fields.decimals).toString();
-                } catch (error) {
-                    throw new GeneralError("there was an error scaling units in tx.", {"error" : error, "inputs": {"key": key, "value":  result[key].toString(), "function": func, "parameters": result}})
-                }
+                args[key] = ethers.parseUnits(result[key].toString(), contract.children[0].fields.decimals).toString();
             }
             else if (input.type == 'address') {
                 let contract = await vh.fast_contract_address_retrieval(result[key])

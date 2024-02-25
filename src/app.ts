@@ -40,7 +40,7 @@ app.hooks({
   error: {
     all: [
       async (context: HookContext) => {
-        console.error(context)
+        return context
       }
     ]
   }

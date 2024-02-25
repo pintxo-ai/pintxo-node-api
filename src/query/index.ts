@@ -3,7 +3,7 @@ import { CLASSIFIER_LEVELS } from "../lm/types";
 import LMHandler from '../lm';
 import TransactionHandler from "../transactions";
 import DataHandler from "../data";
-import { GeneralError } from "@feathersjs/errors";
+import { GeneralError, NotImplemented } from "@feathersjs/errors";
 
 let lm = new LMHandler();
 let th = new TransactionHandler();
@@ -22,14 +22,13 @@ class QueryHandler {
         }
         else if (decision == 'data') {
             // alex: remove this once you're done. this is just for me testing.
-            throw new GeneralError("data query is not implemeneted")
+            throw new NotImplemented("data query is not implemeneted")
             return dh.process(query)
         }
-        else if (decision == 'combo') {
-            throw new GeneralError("combo decision is not implemeneted")
+        //(decision == 'combo')
+        else {
+            throw new NotImplemented("combo decision is not implemeneted")
         }
-
-        throw new GeneralError("none of the classifications were hit.")
     }
 }
 
