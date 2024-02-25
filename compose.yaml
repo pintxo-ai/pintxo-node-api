@@ -11,6 +11,10 @@
 name: pintxo-api 
 
 services:
+  redis:
+      image: 'redislabs/redismod'
+      ports:
+        - '6379:6379'
   server:
     build:
       context: .

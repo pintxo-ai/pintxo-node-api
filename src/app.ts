@@ -4,9 +4,14 @@ import { feathers, type HookContext, type NextFunction } from '@feathersjs/feath
 import { koa, rest, bodyParser, errorHandler, serveStatic } from '@feathersjs/koa'
 import { GeneralError } from '@feathersjs/errors';
 import QueryHandler from './query';
+import RedisHandler from './redis';
 
+// please increment this everytime the api is redployed to keep errors from being overlapped
+let VERSION = "0.1"
+let ERRORS = 0
 
 let qh = new QueryHandler();
+let rh = new RedisHandler(); 
 
 class QueryService {
   async get(query: string) {
@@ -36,11 +41,31 @@ app.use(bodyParser())
 app.configure(rest())
 app.use('query', new QueryService())
 
+// this is where the error layer should log the error to redis
 app.hooks({
   error: {
     all: [
       async (context: HookContext) => {
-        console.error(context)
+        let input_obj = {
+          "type" : context.error.className,
+          "data" : context.error.data,
+          "user_input" : context.arguments[0],
+          "message": context.error.message
+        }
+        rh.setObject(`error_version:${VERSION}_number:${ERRORS}`, input_obj)
+        ERRORS += 1
+        return context
+      }
+    ]
+  },
+})
+
+// save the initial query for accessing in an error.
+app.service('query').hooks({
+  before: {
+    get: [
+      async (context: HookContext) => {
+        context.data = context.arguments[0]
       }
     ]
   }

@@ -1,8 +1,9 @@
 import axios from 'axios';
 import { CohereClient } from "cohere-ai";
-import { InputValue, CLASSIFIER_LEVELS } from "./types";
-import { parse, stringify } from 'yaml'
-import { GeneralError } from '@feathersjs/errors';
+import { CLASSIFIER_LEVELS } from "./types";
+import { parse } from 'yaml';
+import { LanguageModelError } from '../errors';
+import { LM_ERROR_CLASSES } from '../errors/types';
 
 const cohere = new CohereClient({
     token: process.env.COHERE_API_KEY || "invalid, set COHERE_API_KEY in .env",
@@ -11,41 +12,47 @@ const cohere = new CohereClient({
 /// Handles all logic associated with calling a LM api. 
 class LMHandler {
     async extract_function_parameters(user_input: string, relevant_functions: any) {
-
-        // first shot
-        let cohere_response = await cohere.generate({
-            prompt: get_formatted_prompt(user_input, relevant_functions),
-            temperature: 0,
-        });
+        let first_attempt: string = '';
+        let second_attempt: string = '';
 
         try {
+            // first shot
+            let cohere_response = await cohere.generate({
+                prompt: get_formatted_prompt(user_input, relevant_functions),
+                temperature: 0,
+            });
+            first_attempt = cohere_response.generations[0].text;
             return decompose_string(cohere_response.generations[0].text);
-        } catch (error) {
-            // retry if first chance failed.
+        } catch (e) {
             try {
                 let yaml_retry = await cohere.generate({
-                    prompt: get_retry_prompt(cohere_response.generations[0].text),
+                    prompt: get_retry_prompt(first_attempt),
                     temperature: 0,
                 });
-                return decompose_string(yaml_retry.generations[0].text);
+                second_attempt = yaml_retry.generations[0].text;
+                let second_parsed = decompose_string(yaml_retry.generations[0].text);
+                if (second_parsed == null || second_parsed.function == null) {
+                    throw new LanguageModelError("parsing failed to extract a function signature or args.", LM_ERROR_CLASSES.BAD_YAML, {"function" : "extract_function_parameters", "message": '', "user_input": user_input, "first_generation": first_attempt, "second_generation": second_attempt})
+                }
+                return second_parsed
             } catch (e){
-                throw new GeneralError("Both initial YAML generation and subsequent retry failed to format proper YAML. This event should be stored.", { "error": e, "initial_input": user_input, "initial_response": cohere_response })
+                throw new LanguageModelError("second parsing failed to extract a function signature or args.", LM_ERROR_CLASSES.BAD_YAML, {"function" : "extract_function_parameters", "message": '', "user_input": user_input, "first_generation": first_attempt, "second_generation": second_attempt})
             }
         }
+        
     }
 
     async classify(user_input: string, level: CLASSIFIER_LEVELS){
         if (level == CLASSIFIER_LEVELS.LEVEL_ONE) {
-            
+            let classification = await cohere.classify({
+                model: process.env.LEVEL_ONE_CLASSIFIER, // classifier v0.1
+                inputs: [user_input],
+                examples: []
+            })
             try {
-                let classification = await cohere.classify({
-                    model: process.env.LEVEL_ONE_CLASSIFIER, // classifier v0.1
-                    inputs: [user_input],
-                    examples: []
-                })
                 return classification.classifications[0].prediction
             } catch (error) {
-                throw new GeneralError("lm classification call failed", {error})
+                throw new LanguageModelError("failed to classify.", LM_ERROR_CLASSES.BAD_CLASSIFY, {"function" : "classify", "message": error as string, "user_input": user_input, "first_generation": classification.classifications[0].prediction || "none"})
             }
         }
 
@@ -168,22 +175,31 @@ function decompose_string(input: string): Record<string, string> {
                     return yaml
                 }
             } catch (e) {
-                throw new GeneralError("yaml parsing failed.", {"intial_input" : input})
+
             }
         }
-        throw new GeneralError("no yaml was successfully generated.", { "intial_input" : input}); 
+
+        // the end of yaml is frequently a double new line. flawed science.
+        for (const maybe_yaml of input.split('\n\n')) {
+            try {
+                let yaml = parse(maybe_yaml);
+                if (yaml != null){
+                    return yaml
+                }
+            } catch (e) {
+                
+            }
+        }
+        throw new LanguageModelError("yaml parsing failed.", LM_ERROR_CLASSES.BAD_YAML, {"function" : "decompose_string", "message": error as string, "user_input": input, "first_generation": ""})
     }
 }
 
 function get_retry_prompt(input: string): string {
     return `
-    Below is data that is supposed to be yaml formatted. 
-    Sometimes this string will have an extra sentence at the end. ignore that.
-
-
     Format the following broken-yaml into yaml:
     ${input}
 
+    Please don't return anything that isn't part of the YAML. Don't justify or explain anything. Strictly return the YAML.
     YAML:
     `
 }

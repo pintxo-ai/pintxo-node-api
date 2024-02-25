@@ -125,10 +125,10 @@ interface FunctionSchema {
 }
 
 enum VESPA_SCHEMA {
-    FUNCTION,
-    CONTRACT,
-    PROTOCOL,
-    METRIC
+    FUNCTION = 'function',
+    CONTRACT = 'contract',
+    PROTOCOL = 'protocol',
+    METRIC = 'metric'
 }
 
 export {NewFunctionSchema, VespaContractResponse, VESPA_SCHEMA, VespaError, FunctionSchema, FunctionInputValues, VespaFunctionResponse, VespaDocumentResponse, VespaFunctionResponseData, VespaContractResponseData}
