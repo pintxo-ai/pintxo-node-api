@@ -9,6 +9,7 @@ import { VESPA_SCHEMA, NewFunctionSchema } from '../vespa/types';
 import LMHandler from '../lm';
 import { LanguageModelError, TransactionError } from '../errors';
 import {TX_ERROR_CLASSES} from '../errors/types';
+import { PintxoTransactionResponse } from './types';
 
 interface FunctionParameter {
   value: string; // Address or numeric values
@@ -23,7 +24,10 @@ const CHAIN_ID=ethers.getNumber(process.env.BASE_CHAIN_ID || 8453);
 
 /// TransactionHandler class for executing transactions.
 class TransactionHandler {
-    async process(query: string) {
+    
+    // process returns the data needed to call a function. This data is then visualized to end user and a 'confirm' is awaited.
+    // once confirmed, a new endpoint will be hit specifically for executing the transaction.
+    async process(query: string): Promise<PintxoTransactionResponse> {
         let top_function_signatures = await vh.query(query, VESPA_SCHEMA.FUNCTION);
 
         // format the top_3_function signatures as a string.
@@ -34,12 +38,16 @@ class TransactionHandler {
 
         let chosen_function = await vh.get_function_by_id(parameters.function);
 
-        try {
-            let args = await parse_user_inputted_parameters(chosen_function, parameters);
-            let tx = await this.execute(chosen_function, args);
-            return tx        
-        } catch (e) {
-            throw new TransactionError("transaction failed.", TX_ERROR_CLASSES.FAILED_TX, {"function": "parse_user_inputted_parameters", "user_input": query, "message": e as string, "function_signature": chosen_function.fields.signature, "contract_to_call": chosen_function.fields.contract_address, "args": parameters, "top_functions": top_function_signatures.children.map(entry => entry.fields.documentid)});
+        let args = await parse_user_inputted_parameters(chosen_function, parameters);
+
+        
+        return {
+            "function": chosen_function.fields.name,
+            "signature": chosen_function.fields.signature,
+            "functional_signature": chosen_function.fields.functional_signature,
+            "contract_address": chosen_function.fields.contract_address,
+            "prerequisites": chosen_function.fields.prerequisites,
+            "args": args
         }
     }
 

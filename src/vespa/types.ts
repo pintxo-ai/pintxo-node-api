@@ -69,7 +69,7 @@ interface VespaContractResponseData {
     children: ContractSchema[]
 }
 
-interface Prerequisite {
+export interface Prerequisite {
     id: string,
     contract_to_call: string,
     signature: string,

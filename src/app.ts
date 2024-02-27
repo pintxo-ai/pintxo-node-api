@@ -8,6 +8,10 @@ import RedisHandler from './redis';
 import configuration from '@feathersjs/configuration'
 import { cors } from '@feathersjs/koa';
 import { configurationValidator } from './configuration';
+import { NewFunctionSchema } from './vespa/types';
+import TransactionHandler from './transactions';
+import { TransactionError } from './errors';
+import {TX_ERROR_CLASSES} from './errors/types';
 
 // please increment this everytime the api is redployed to keep errors from being overlapped
 let VERSION = "0.1"
@@ -15,12 +19,13 @@ let ERRORS = 0
 
 let qh = new QueryHandler();
 let rh = new RedisHandler(); 
+let th = new TransactionHandler();
 
 class QueryService {
   async get(query: string) {
     let result;
     try {
-      result = qh.process(decodeURIComponent(query));
+      result = qh.process(decodeURIComponent(query)); 
     } catch (error) {
       throw new GeneralError("The QueryService entrypoint failed.");
     }
@@ -28,9 +33,24 @@ class QueryService {
   }
 }
 
+class TransactionService {
+  // user_input: string, func: NewFunctionSchema, args: Record<string, string>
+  async create(data: any) {
+    console.log(data);
+    let result;
+    try {
+      let tx = await th.execute(data.func, data.args);
+      return tx        
+    } catch (e) {
+      throw new TransactionError("transaction failed.", TX_ERROR_CLASSES.FAILED_TX, {"function": "parse_user_inputted_parameters", "user_input": data.user_input, "message": e as string, "function_signature": data.func.fields.signature, "contract_to_call": data.func.fields.contract_address, "args": data.args, "top_functions": [""]});
+    }
+  }
+}
+
 // This tells TypeScript what services we are registering
 type ServiceTypes = {
   query: QueryService
+  transact: TransactionService 
 }
 
 // Creates an KoaJS compatible Feathers application
@@ -47,7 +67,8 @@ app.use(bodyParser())
 // Register REST service handler
 app.configure(rest())
 
-app.use('query', new QueryService())
+app.use('query', new QueryService());
+app.use('transact', new TransactionService())
 
 // this is where the error layer should log the error to redis
 app.hooks({
@@ -61,7 +82,7 @@ app.hooks({
           "message": context.error.message
         }
         rh.setObject(`error_version:${VERSION}_number:${ERRORS}`, input_obj)
-        ERRORS += 1
+        ERRORS = ERRORS +  1
         return context
       }
     ]
@@ -91,6 +112,5 @@ app
 ░▒▓█▓▒░      ░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░ ░▒▓█▓▒░   ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░      
 ░▒▓█▓▒░      ░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░ ░▒▓█▓▒░   ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░      
 ░▒▓█▓▒░      ░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░ ░▒▓█▓▒░   ░▒▓█▓▒░░▒▓█▓▒░░▒▓██████▓▒░       
-                                                                             
-                                                                             
+                                                                                                                                                  
 Live on 3030`))
