@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-import { feathers, type HookContext, type NextFunction } from '@feathersjs/feathers'
+import { feathers, type HookContext } from '@feathersjs/feathers'
 import { koa, rest, bodyParser, errorHandler, serveStatic, Application } from '@feathersjs/koa'
 import { GeneralError } from '@feathersjs/errors';
 import QueryHandler from './query';
@@ -8,7 +8,7 @@ import RedisHandler from './redis';
 import configuration from '@feathersjs/configuration'
 import { cors } from '@feathersjs/koa';
 import { configurationValidator } from './configuration';
-import { NewFunctionSchema } from './vespa/types';
+import { FunctionEntry } from './vespa/types';
 import TransactionHandler from './transactions';
 import { TransactionError } from './errors';
 import {TX_ERROR_CLASSES} from './errors/types';
@@ -33,10 +33,16 @@ class QueryService {
   }
 }
 
+interface TemporaryInputType {
+  user_input: string,
+  func: FunctionEntry,
+  args: Record<string, string>
+}
+
 class TransactionService {
   // user_input: string, func: NewFunctionSchema, args: Record<string, string>
-  async create(data: any) {
-    console.log(data);
+  // todo: types
+  async create(data: TemporaryInputType) {
     let result;
     try {
       let tx = await th.execute(data.func, data.args);

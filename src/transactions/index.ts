@@ -4,10 +4,10 @@ import qs from 'qs';
 
 import { ethers } from "ethers";
 import { SyndicateClient } from "@syndicateio/syndicate-node";
-import VespaHandler from '../vespa'; 
-import { VESPA_SCHEMA, NewFunctionSchema } from '../vespa/types';
+import {VespaHandler} from '../vespa'; 
+import { VESPA_SCHEMA, FunctionEntry, ContractChild } from '../vespa/types';
 import LMHandler from '../lm';
-import { LanguageModelError, TransactionError } from '../errors';
+import { TransactionError } from '../errors';
 import {TX_ERROR_CLASSES} from '../errors/types';
 import { PintxoTransactionResponse } from './types';
 
@@ -27,32 +27,38 @@ class TransactionHandler {
     
     // process returns the data needed to call a function. This data is then visualized to end user and a 'confirm' is awaited.
     // once confirmed, a new endpoint will be hit specifically for executing the transaction.
-    async process(query: string): Promise<PintxoTransactionResponse> {
-        let top_function_signatures = await vh.query(query, VESPA_SCHEMA.FUNCTION);
+    async process(user_input: string): Promise<PintxoTransactionResponse> {
+        let vespa_retrieved_functions = await vh.query(user_input, VESPA_SCHEMA.FUNCTION);
+        let top_functions_array = vespa_retrieved_functions.data.root.children as FunctionEntry[];
 
         // format the top_3_function signatures as a string.
-        let formatted_function_signatures = top_function_signatures.children.map(entry => `signature:"${entry.fields.functional_signature}"\ndescription:"${entry.fields.description}"`).join('\n\n'); 
+        let formatted_function_signatures = top_functions_array.map(entry => `signature:"${entry.fields.functional_signature}"\ndescription:"${entry.fields.description}"`).join('\n\n'); 
         
         // this needs work. probably a finetune is essential.
-        let parameters = await lm.extract_function_parameters(query, formatted_function_signatures);
+        let parameters = await lm.extract_function_parameters(user_input, formatted_function_signatures);
 
         let chosen_function = await vh.get_function_by_id(parameters.function);
 
-        let args = await parse_user_inputted_parameters(chosen_function, parameters);
+        let args = await parse_user_inputted_parameters(chosen_function.data, parameters);
 
         
         return {
-            "function": chosen_function.fields.name,
-            "signature": chosen_function.fields.signature,
-            "functional_signature": chosen_function.fields.functional_signature,
-            "contract_address": chosen_function.fields.contract_address,
-            "prerequisites": chosen_function.fields.prerequisites,
+            "function": chosen_function.data.fields.name,
+            "signature": chosen_function.data.fields.signature,
+            "functional_signature": chosen_function.data.fields.functional_signature,
+            "contract_address": chosen_function.data.fields.contract_address,
+            "prerequisites": chosen_function.data.fields.prerequisites,
             "args": args
         }
     }
 
     // todo: add some type checking for params? Definitely needs some proper validation.
-    async execute(func: NewFunctionSchema, args: Record<string, string>) {
+    /// execute function for TransactionHandler.
+    /// Args:
+    ///     function_signature: string - the function signature you want to call
+    ///     args: Record<string, string> - a dictionary that contains all the parameters inside function_signature.
+    ///     prerequisites: Prerequisite[] - a list of precursor functions that need to be called onchain. (ie, approve)
+    async execute(func: FunctionEntry, args: Record<string, string>) {
         // call any prerequisite functions
         if (func.fields.prerequisites) {
             for (const [key, {id, contract_to_call, signature, inputs}] of Object.entries(func.fields.prerequisites)) {
@@ -146,7 +152,7 @@ async function get_args_for_swap(sellToken: string, buyToken: string, sellAmount
     return args
 }
 
-async function parse_user_inputted_parameters(func: NewFunctionSchema, result: Record<string, string>): Promise<Record<string, string>> {
+async function parse_user_inputted_parameters(func: FunctionEntry, result: Record<string, string>): Promise<Record<string, string>> {
     let args: Record<string, string> = {};
     
     for (const [key, input] of Object.entries(func.fields.inputs)) {
@@ -154,12 +160,12 @@ async function parse_user_inputted_parameters(func: NewFunctionSchema, result: R
         if (key in result) {
             // if denominated_by is specified, this needs to be scaled. 
             if (input.denominated_by) {
-                let contract = await vh.fast_contract_address_retrieval(result[input.denominated_by]);
-                args[key] = ethers.parseUnits(result[key].toString(), contract.children[0].fields.decimals).toString();
+                let contract = (await vh.fast_contract_address_retrieval(result[input.denominated_by])).data.root.children[0] as ContractChild;
+                args[key] = ethers.parseUnits(result[key].toString(), contract.fields.decimals).toString();
             }
             else if (input.type == 'address') {
-                let contract = await vh.fast_contract_address_retrieval(result[key])
-                args[key] = contract.children[0].fields.contract_address
+                let contract = (await vh.fast_contract_address_retrieval(result[key])).data.root.children[0] as ContractChild;
+                args[key] = contract.fields.contract_address
             } else {
                 args[key] = result[key]
             }

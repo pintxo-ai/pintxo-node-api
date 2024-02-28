@@ -1,16 +1,12 @@
 import 'dotenv/config'
-import qs from 'qs';
 import axios from 'axios';
 import { ethers } from "ethers";
-import VespaHandler from '../vespa'; 
-import { VESPA_SCHEMA } from '../vespa/types';
-import { InputValue } from '../lm/types';
+import {VespaHandler} from '../vespa'; 
 import LMHandler from '../lm';
-//import { GeneralError } from "@feathersjs/errors";
 import { CLASSIFIER_LEVELS } from "../lm/types";
 
 // clients
-let vh = new VespaHandler();
+// let vh = new VespaHandler();
 let lm = new LMHandler();
 
 const CHAIN_ID=ethers.getNumber(process.env.BASE_CHAIN_ID || 0);
