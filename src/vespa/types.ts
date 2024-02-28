@@ -1,20 +1,47 @@
-
-// Input types to function signatures
-enum VALUE_TYPES {
-    caller_address,
-    address,
-    uint256,
+export enum VESPA_RESPONSE_TYPE {
+    CONTRACT,
+    FUNCTION,
 }
 
-interface VespaError {
-    error: {
-        message: string,
-        method: string,
-        url: string
+export interface VespaResponse {
+    type: VESPA_RESPONSE_TYPE,
+    data: {
+        root: {
+            id: string,
+            relevance: number,
+            fields: any
+            coverage: {
+                coverage: number,
+                documents: number,
+                full: boolean,
+                nodes: number,
+                results: number,
+                resultsFull: number,
+            }
+            children: (ContractChild | FunctionEntry)[]
+        }
+    }
+
+}
+
+export interface ContractChild {
+    pathId: string,
+    id: string,
+    relevance: number,
+    source: string,
+    fields: {
+        matchFeatures: any,
+        sddocname: string,
+        documentid: string,
+        name: string,
+        type: string,
+        contract_address: string,
+        symbol: string,
+        decimals: number,
     }
 }
 
-interface NewFunctionSchema {
+export interface FunctionEntry {
     pathId: string,
     id: string,
     fields: {
@@ -28,6 +55,19 @@ interface NewFunctionSchema {
     }
 }
 
+export interface VespaDocumentResponse {
+    data: FunctionEntry
+}
+
+
+export interface VespaError {
+    error: {
+        message: string,
+        method: string,
+        url: string
+    }
+}
+
 interface InputInfo {
     name: string
     type: string
@@ -35,100 +75,23 @@ interface InputInfo {
 }
 
 
-// unify FunctionInputValues with PrerequisiteInputValues?
-interface FunctionInputValues {
-    name: string,
-    type: string,
-    denominated_by: string,
-}
-
 interface PrerequisiteInputValues {
     name: string,
     type: string,
     corresponds_to: string,
 }
 
-interface VespaContractResponse {
-    status: number,
-    statusText: string,
-    url: string,
-    data: {
-        root: VespaContractResponseData
-    },
-}
-
-interface VespaDocumentResponse {
-    data: NewFunctionSchema
-}
-
-interface VespaContractResponseData {
-    id: string,
-    relevance: number,
-    fields: any,
-    coverage: any,
-    children: ContractSchema[]
-}
-
-interface Prerequisite {
+export interface Prerequisite {
     id: string,
     contract_to_call: string,
     signature: string,
     inputs: PrerequisiteInputValues[]
 }
 
-interface ContractSchema {
-    id: string,
-    relevance: string,
-    fields: {
-        documentid: string,
-        decimals: string,
-        name: string,
-        description: string,
-        signature: string,
-        functional_signature: string,
-        contract_address: string,
-        prerequisites: Prerequisite[],
-        inputs: FunctionInputValues[]
-    }
-}
-
-interface VespaFunctionResponse {
-    status: number,
-    statusText: string,
-    url: string,
-    data: {
-        root: VespaFunctionResponseData
-    },
-}
-
-interface VespaFunctionResponseData {
-    id: string,
-    relevance: number,
-    fields: any,
-    coverage: any,
-    children: FunctionSchema[]
-}
-
-interface FunctionSchema {
-    id: string,
-    relevance?: string,
-    fields: {
-        documentid: string,
-        name: string,
-        description: string,
-        signature: string,
-        functional_signature: string,
-        contract_address: string,
-        prerequisites: Prerequisite[],
-        inputs: FunctionInputValues[]
-    }
-}
-
-enum VESPA_SCHEMA {
+export enum VESPA_SCHEMA {
     FUNCTION = 'function',
     CONTRACT = 'contract',
     PROTOCOL = 'protocol',
     METRIC = 'metric'
 }
 
-export {NewFunctionSchema, VespaContractResponse, VESPA_SCHEMA, VespaError, FunctionSchema, FunctionInputValues, VespaFunctionResponse, VespaDocumentResponse, VespaFunctionResponseData, VespaContractResponseData}

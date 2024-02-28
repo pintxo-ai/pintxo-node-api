@@ -1,5 +1,3 @@
-import { FunctionSchema } from "../vespa/types";
-
 export enum VESPA_ERROR_CLASSES {
     NOT_FOUND = "NOT_FOUND",
     NOT_RUNNING = "NOT_RUNNING",
