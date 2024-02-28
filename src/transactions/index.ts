@@ -43,7 +43,9 @@ class TransactionHandler {
 
         
         return {
+            "type": "transaction",
             "function": chosen_function.data.fields.name,
+            "description": chosen_function.data.fields.description,
             "signature": chosen_function.data.fields.signature,
             "functional_signature": chosen_function.data.fields.functional_signature,
             "contract_address": chosen_function.data.fields.contract_address,
