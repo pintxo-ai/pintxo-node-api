@@ -20,7 +20,11 @@ const syndicate = new SyndicateClient({ token: process.env.SYNDICATE_API_KEY || 
 let vh = new VespaHandler();
 let lm = new LMHandler();
 
-const CHAIN_ID=ethers.getNumber(process.env.BASE_CHAIN_ID || 8453);
+const CHAIN_ID=ethers.getNumber(process.env.CHAIN_ID || 11155111);
+
+function delay(time: number) {
+    return new Promise(resolve => setTimeout(resolve, time));
+  } 
 
 /// TransactionHandler class for executing transactions.
 class TransactionHandler {
@@ -78,14 +82,16 @@ class TransactionHandler {
                 if (!process.env.DEV){
                     let tx = await this.__execute_function(signature, args[contract_to_call], prereq_args);
                     // need some way to verify that this tx has settled before continuing
+                    
+                    // sleep 1s for approve to get confirmed. this may sometimes break!
+                    await delay(2500);
                     console.log(tx)
                 } 
             }
-        }
-        
+        }        
         // special case for transformERC20, since it needs custom transformations data only available from the 0x api.
         if (!process.env.DEV){
-            if (func.fields.name == 'swap') {
+            if (func.fields.contract_address == '0xdef1c0ded9bec7f1a1670819833240f027b25eff') {
                 let swap_args = await get_args_for_swap(args.inputToken, args.outputToken, args.inputTokenAmount);
                 let tx = await this.__execute_function(func.fields.signature, func.fields.contract_address, swap_args);
                 return tx
@@ -122,16 +128,18 @@ async function get_args_for_swap(sellToken: string, buyToken: string, sellAmount
     ];
 
     const iface  = new ethers.Interface(abi);
-        
+    
     const params = {
         sellToken: sellToken, //WETH
         buyToken: buyToken, //USDC
-        sellAmount: sellAmount, // Note that the ETH token uses 6 decimal places, so `sellAmount` is `0.001 * 10^18`.
-    };    
+        sellAmount: sellAmount,
+    };  
+        
     const headers = {'0x-api-key': process.env.ZEROEX_API_KEY || "invalid"}; 
     const response = await fetch(
-        `https://base.api.0x.org/swap/v1/quote?${qs.stringify(params)}`, { headers }
+        `${process.env.ZEROEX_SWAP_ENDPOINT}/swap/v1/quote?${qs.stringify(params)}`, { headers }
     ); 
+
     // The example is for Ethereum mainnet https://api.0x.org. Refer to the 0x Cheat Sheet for all supported endpoints: https://0x.org/docs/introduction/0x-cheat-sheet
     let respo = await response.json();
     let decoded_calldata = iface.decodeFunctionData("transformERC20", respo.data);
@@ -142,13 +150,12 @@ async function get_args_for_swap(sellToken: string, buyToken: string, sellAmount
         transformations.push({"deploymentNonce" : ethers.getNumber(decoded_calldata[4][index][0]), "data": decoded_calldata[4][index][1].toString()})
     }
 
-
     let args: Record<string, string | {deploymentNonce: number, data: string}[] | number> = {}
     
     args["inputToken"] = sellToken;
     args["outputToken"] = buyToken;
     args["inputTokenAmount"] = sellAmount;
-    args["minOutputTokenAmount"] = ethers.getNumber(decoded_calldata[3]);
+    args["minOutputTokenAmount"] = ethers.getBigInt(decoded_calldata[3]).toString();
     args["transformations"] = transformations;
 
     return args
