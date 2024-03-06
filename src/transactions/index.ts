@@ -37,7 +37,7 @@ class TransactionHandler {
 
         // format the top_3_function signatures as a string.
         let formatted_function_signatures = top_functions_array.map(entry => `signature:"${entry.fields.functional_signature}"\ndescription:"${entry.fields.description}"`).join('\n\n'); 
-        
+
         // this needs work. probably a finetune is essential.
         let parameters = await lm.extract_function_parameters(user_input, formatted_function_signatures);
 
@@ -83,9 +83,9 @@ class TransactionHandler {
                     let tx = await this.__execute_function(signature, args[contract_to_call], prereq_args);
                     // need some way to verify that this tx has settled before continuing
                     
+                    console.log(tx)
                     // sleep 1s for approve to get confirmed. this may sometimes break!
                     await delay(2500);
-                    console.log(tx)
                 } 
             }
         }        
@@ -181,7 +181,7 @@ async function parse_user_inputted_parameters(func: FunctionEntry, result: Recor
         } else {
             if (input.type == 'caller_address') {
                  // once we know how syndicate account abstraction works, we would fire in the user's address.
-                args[key] = "0x7bb037dad988406e1e399780e508518599cd4370"
+                args[key] = "0x9fB63573Cc56Dc24a5bda8F04570468C994616B8"
             }
             else if (input.type == "contract_address") {
                 args[key] = func.fields.contract_address

@@ -44,15 +44,22 @@ class LMHandler {
 
     async classify(user_input: string, level: CLASSIFIER_LEVELS){
         if (level == CLASSIFIER_LEVELS.LEVEL_ONE) {
-            let classification = await cohere.classify({
-                model: process.env.LEVEL_ONE_CLASSIFIER, // classifier v0.1
-                inputs: [user_input],
-                examples: []
-            })
+            let classification: string = '';
             try {
-                return classification.classifications[0].prediction
+                let cohere_response = await cohere.classify({
+                    model: process.env.LEVEL_ONE_CLASSIFIER, // classifier v0.1
+                    inputs: [user_input],
+                    examples: []
+                })
+
+                if (cohere_response.classifications[0].prediction) {
+                    classification = cohere_response.classifications[0].prediction
+                } else {
+                    throw new LanguageModelError("classification came back null.", LM_ERROR_CLASSES.BAD_CLASSIFY, {"function" : "classify", "message": "cohere classification endpoint returned nullvalue", "user_input": user_input, "first_generation": classification})
+                }
+                return classification
             } catch (error) {
-                throw new LanguageModelError("failed to classify.", LM_ERROR_CLASSES.BAD_CLASSIFY, {"function" : "classify", "message": error as string, "user_input": user_input, "first_generation": classification.classifications[0].prediction || "none"})
+                throw new LanguageModelError("failed to classify.", LM_ERROR_CLASSES.BAD_CLASSIFY, {"function" : "classify", "message": error as string, "user_input": user_input, "first_generation": classification})
             }
         }
 

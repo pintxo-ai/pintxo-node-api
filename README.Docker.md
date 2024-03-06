@@ -1,6 +1,9 @@
 ### Building and running your application
 
 When you're ready, start your application by running:
+
+make a file db/password.txt and enter the password you want to access the db with.
+
 `docker compose up --build`.
 
 Your application will be available at http://localhost:3030.

@@ -4,7 +4,6 @@ import { feathers, type HookContext } from '@feathersjs/feathers'
 import { koa, rest, bodyParser, errorHandler, serveStatic, Application } from '@feathersjs/koa'
 import { GeneralError } from '@feathersjs/errors';
 import QueryHandler from './query';
-import RedisHandler from './redis';
 import configuration from '@feathersjs/configuration'
 import { cors } from '@feathersjs/koa';
 import { configurationValidator } from './configuration';
@@ -12,14 +11,17 @@ import { FunctionEntry } from './vespa/types';
 import TransactionHandler from './transactions';
 import { TransactionError } from './errors';
 import {TX_ERROR_CLASSES} from './errors/types';
+import { DBHandler } from './db';
 
 // please increment this everytime the api is redployed to keep errors from being overlapped
-let VERSION = "0.1"
-let ERRORS = 0
+let VERSION = "0.1";
+let ERRORS = 0;
 
 let qh = new QueryHandler();
-let rh = new RedisHandler(); 
 let th = new TransactionHandler();
+let db = new DBHandler();
+
+db.test();
 
 class QueryService {
   async get(query: string) {
@@ -87,7 +89,7 @@ app.hooks({
           "user_input" : context.arguments[0],
           "message": context.error.message
         }
-        rh.setObject(`error_version:${VERSION}_number:${ERRORS}`, input_obj)
+        // rh.setObject(`error_version:${VERSION}_number:${ERRORS}`, input_obj)
         ERRORS = ERRORS +  1
         return context
       }
