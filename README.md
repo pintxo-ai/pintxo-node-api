@@ -2,25 +2,30 @@
 
 ## setup
 
+make a file db/password.txt and enter the password you want to access the db with.
+
 `pnpm install`
+
+`docker compose up --build` to initiate the postgres instance.
+
+you can stop the api container after everything starts running.
+
+then seed the db: `npx ts-node src/db/seed.ts`
+
+and finally run the api:
 
 `npx ts-node src/app.ts`
 
 ## docker
 
-### just a redis instance
-`docker run -p 6379:6379 -it redis/redis-stack-server:latest` 
-
 ### all services
 
 `docker compose up --build`
 
-### tips
+this will start the api and db containers, but the db will not be seeded and will cause errors until you seed it.
+once built, you can stop the api and run purely the db, and then run 
 
-download redis insights for visualizing the db.
+`npx ts-node src/db/seed.ts` to seed the db and then
 
-## TODO
+`npx ts-node src/app.ts` for quick development.
 
-~~- write vespa handler~~
-~~- abstract transaction handler to take kwargs~~
-~~- write query handler~~

@@ -13,15 +13,9 @@ import { TransactionError } from './errors';
 import {TX_ERROR_CLASSES} from './errors/types';
 import { DBHandler } from './db';
 
-// please increment this everytime the api is redployed to keep errors from being overlapped
-let VERSION = "0.1";
-let ERRORS = 0;
-
 let qh = new QueryHandler();
 let th = new TransactionHandler();
 let db = new DBHandler();
-
-db.test();
 
 class QueryService {
   async get(query: string) {
@@ -86,11 +80,12 @@ app.hooks({
         let input_obj = {
           "type" : context.error.className,
           "data" : context.error.data,
-          "user_input" : context.arguments[0],
+          "user_input" : decodeURIComponent(context.arguments[0]),
           "message": context.error.message
         }
-        // rh.setObject(`error_version:${VERSION}_number:${ERRORS}`, input_obj)
-        ERRORS = ERRORS +  1
+
+        db.submitToDatabase(input_obj);
+
         return context
       }
     ]
@@ -103,7 +98,7 @@ app.service('query').hooks({
   before: {
     get: [
       async (context: HookContext) => {
-        context.data = context.arguments[0]
+        context.data = context.arguments[0];
       }
     ]
   }
