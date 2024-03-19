@@ -1,5 +1,8 @@
 import { RedisClientType, createClient } from 'redis';
 
+
+
+/// As of now this is fully deprecated. I am not using this anywhere.
 class RedisHandler {
   private client: RedisClientType = createClient();
 

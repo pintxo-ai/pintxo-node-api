@@ -36,5 +36,7 @@ COPY . .
 # Expose the port that the application listens on.
 EXPOSE 3030
 
+# RUN npx ts-node src/db/seed.ts
+
 # Run the application.
 CMD npx ts-node src/app.ts
